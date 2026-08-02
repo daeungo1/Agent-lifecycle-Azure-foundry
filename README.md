@@ -33,7 +33,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 ## Prerequisites
 
 - Python 3.13 runtime target and local Python environment.
-- `azd` installed, with Foundry extension support (`azd extension add microsoft.foundry --no-prompt`).
+- `azd` installed, with Foundry extension support (`azd extension install microsoft.foundry --no-prompt`).
 - Azure subscription with quota for Foundry project and model deployment.
 - Preview and tenant prerequisites for Agent365 governance and Graph-based role operations.
 - Required environment values (example in `.env.example`):
@@ -77,7 +77,7 @@ python services/agents/marketing/main.py
 ## Provision and deploy
 
 ```bash
-azd extension add microsoft.foundry --no-prompt
+azd extension install microsoft.foundry --no-prompt
 azd provision --no-prompt
 python scripts/provision_knowledge_bases.py
 pwsh -File scripts/configure_toolboxes.ps1

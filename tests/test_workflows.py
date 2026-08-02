@@ -111,7 +111,9 @@ def test_deploy_workflow_contract() -> None:
     assert "azd env set AZURE_AI_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
     assert "azd env set FOUNDRY_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
 
-    assert "azd extension add microsoft.foundry" in joined
+    assert "azd extension install microsoft.foundry --no-prompt" in joined
+    assert "azd extension add microsoft.foundry" not in joined
+    assert "azd ext install microsoft.foundry" not in joined
     assert "AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd" in joined
 
     # Verify all azd invocations set the required user agent inline.

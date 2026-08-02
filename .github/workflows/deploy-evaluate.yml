@@ -52,7 +52,7 @@ jobs:
 
       - name: Install Foundry extension
         run: |
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension add microsoft.foundry --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension install microsoft.foundry --no-prompt
 
       - name: Configure OIDC authentication
         run: |
