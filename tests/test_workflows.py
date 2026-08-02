@@ -126,9 +126,17 @@ def test_deploy_workflow_contract() -> None:
                 continue
             assert "AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd" in stripped
 
-    assert "python scripts/provision_knowledge_bases.py" in joined
+    assert (
+        "python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json"
+        in joined
+    )
     assert "pwsh -File scripts/configure_toolboxes.ps1" in joined
-    assert "python scripts/set_agent_rbac.py" in joined
+    assert "python scripts/set_agent_rbac.py --report-path artifacts/rbac.json" in joined
+    assert "python scripts/set_agent_rbac.py > artifacts/rbac.json" not in joined
+    assert (
+        "python scripts/provision_knowledge_bases.py > artifacts/knowledge-bases.json"
+        not in joined
+    )
 
     smoke_lines = [
         line.strip()
@@ -168,6 +176,8 @@ def test_deploy_workflow_contract() -> None:
     assert "python scripts/configure_continuous_evaluation.py" in joined
     assert "python scripts/agent365/configure_observability.py" in joined
     assert "python scripts/agent365/verify_registry.py" in joined
+    assert "A365_PREREQUISITES_CLAIMED" in joined
+    assert "python scripts/agent365/verify_registry.py > artifacts/agent365-registry.json" in joined
 
     # Evaluate must happen before operate regardless of step text casing.
     assert evaluate_index < operate_index

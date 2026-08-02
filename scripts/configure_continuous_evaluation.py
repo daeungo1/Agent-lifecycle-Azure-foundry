@@ -31,6 +31,10 @@ except ModuleNotFoundError:  # pragma: no cover - covered by unit tests with fal
 
     @dataclass
     class EvaluationRule:  # type: ignore[no-redef]
+        id: str
+        display_name: str
+        description: str
+        enabled: bool
         event_type: str
         filter: EvaluationRuleFilter
         action: ContinuousEvaluationRuleAction

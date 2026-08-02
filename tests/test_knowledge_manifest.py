@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
@@ -412,6 +413,94 @@ def test_apply_mode_closes_credential_after_success(monkeypatch: pytest.MonkeyPa
     pkb.provision_foundry_iq_knowledge(dry_run=False)
 
     assert credential.closed is True
+
+
+def test_apply_summary_exposes_boundary_artifacts_endpoints_and_operation_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_required_endpoint_env_vars(monkeypatch)
+    monkeypatch.setenv("FOUNDRYIQ_NAME_PREFIX", "enterprise-lifecycle")
+
+    monkeypatch.setattr(
+        pkb,
+        "DefaultAzureCredential",
+        lambda: Mock(get_token=lambda _scope: Mock(token="fake-token")),
+    )
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    class _Client:
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            return False
+
+        def request(
+            self,
+            method: str,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+            timeout: int,
+        ) -> _Response:
+            return _Response()
+
+    monkeypatch.setattr(pkb.httpx, "Client", lambda: _Client())
+
+    def fake_run(args: list[str], **kwargs: Any) -> Any:
+        if args[:3] == ["azd", "env", "get-values"]:
+            return Mock(stdout="AZURE_ENV_NAME=enterprise-lifecycle\n")
+        if args[:3] == ["azd", "env", "set"]:
+            return Mock(stdout="")
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    monkeypatch.setattr(pkb.subprocess, "run", fake_run)
+
+    summary = pkb.provision_foundry_iq_knowledge(dry_run=False)
+
+    assert summary["status"] == "success"
+    assert set(summary["boundaries"].keys()) == {
+        "shared",
+        "development",
+        "human-resources",
+        "marketing",
+    }
+    for boundary in summary["boundaries"].values():
+        assert boundary["artifactNames"]["indexName"]
+        assert boundary["artifactNames"]["knowledgeSourceName"]
+        assert boundary["artifactNames"]["knowledgeBaseName"]
+        assert boundary["mcp"]["envVarName"].startswith("KB_MCP_ENDPOINT_")
+        assert boundary["mcp"]["endpoint"].startswith("https://")
+        assert boundary["operationCount"] == 4
+    assert "token" not in json.dumps(summary).lower()
+
+
+def test_main_prints_json_and_optional_output_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_path = tmp_path / "knowledge-bases.json"
+    monkeypatch.setattr(
+        pkb.argparse.ArgumentParser,
+        "parse_args",
+        lambda self: Mock(dry_run=False, output=str(output_path)),
+    )
+    monkeypatch.setattr(
+        pkb,
+        "provision_foundry_iq_knowledge",
+        lambda *, dry_run: {"status": "success", "mode": "apply", "boundaries": {}},
+    )
+
+    exit_code = pkb.main()
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["status"] == "success"
+    assert json.loads(output_path.read_text(encoding="utf-8"))["status"] == "success"
 
 
 def test_knowledge_roots_exist_on_disk() -> None:

@@ -393,24 +393,48 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
         missing_vars = ", ".join(search_endpoint_env_var_name(boundary) for boundary in missing)
         raise ValueError(f"Missing required Search endpoint variables: {missing_vars}")
 
-    boundary_plan: dict[str, dict[str, str]] = {}
+    boundary_plan: dict[str, dict[str, Any]] = {}
     mcp_env_values: dict[str, str] = {}
+    operations_by_boundary: dict[str, list[dict[str, Any]]] = {}
     for boundary in KNOWLEDGE_BOUNDARIES:
         names = build_artifact_names(prefix=prefix, boundary=boundary)
+        documents = load_boundary_documents(boundary)
+        operations = build_rest_operations(
+            boundary=boundary,
+            endpoint=endpoints[boundary],
+            names=names,
+            documents=documents,
+        )
         mcp_endpoint = _build_mcp_endpoint(endpoints[boundary], names.knowledge_base_name)
         boundary_plan[boundary] = {
             "searchEndpoint": endpoints[boundary],
-            "indexName": names.index_name,
-            "knowledgeSourceName": names.knowledge_source_name,
-            "knowledgeBaseName": names.knowledge_base_name,
-            "mcpEndpoint": mcp_endpoint,
+            "artifactNames": {
+                "indexName": names.index_name,
+                "knowledgeSourceName": names.knowledge_source_name,
+                "knowledgeBaseName": names.knowledge_base_name,
+            },
+            "mcp": {
+                "envVarName": knowledge_base_mcp_env_var_name(boundary),
+                "endpoint": mcp_endpoint,
+            },
+            "documentCount": len(documents),
+            "operationCount": len(operations),
         }
         mcp_env_values[knowledge_base_mcp_env_var_name(boundary)] = mcp_endpoint
+        operations_by_boundary[boundary] = operations
 
     summary: dict[str, Any] = {
+        "status": "planned" if dry_run else "success",
         "mode": "dry-run" if dry_run else "apply",
-        "plannedEnvVars": mcp_env_values,
         "boundaries": boundary_plan,
+        "mcpEnv": mcp_env_values,
+        "plannedEnvVars": mcp_env_values,
+        "operationTotals": {
+            "boundaryCount": len(KNOWLEDGE_BOUNDARIES),
+            "operationCount": sum(
+                boundary_plan[boundary]["operationCount"] for boundary in KNOWLEDGE_BOUNDARIES
+            ),
+        },
     }
 
     if dry_run:
@@ -422,14 +446,7 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
 
         with httpx.Client() as client:
             for boundary in KNOWLEDGE_BOUNDARIES:
-                documents = load_boundary_documents(boundary)
-                names = build_artifact_names(prefix=prefix, boundary=boundary)
-                operations = build_rest_operations(
-                    boundary=boundary,
-                    endpoint=endpoints[boundary],
-                    names=names,
-                    documents=documents,
-                )
+                operations = operations_by_boundary[boundary]
                 for operation in operations:
                     _put_operation(
                         client,
@@ -449,7 +466,7 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
     return summary
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Provision Foundry IQ knowledge boundaries into Azure AI Search."
     )
@@ -458,11 +475,18 @@ def main() -> None:
         action="store_true",
         help="Validate manifest, naming, and payload construction without Azure REST calls.",
     )
+    parser.add_argument(
+        "--output",
+        help="Optional path to write the JSON summary artifact.",
+    )
     args = parser.parse_args()
     summary = provision_foundry_iq_knowledge(dry_run=args.dry_run)
-    if args.dry_run:
-        print(json.dumps(summary, indent=2, sort_keys=True))
+    summary_json = json.dumps(summary, indent=2, sort_keys=True)
+    print(summary_json)
+    if args.output:
+        Path(args.output).write_text(summary_json, encoding="utf-8")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

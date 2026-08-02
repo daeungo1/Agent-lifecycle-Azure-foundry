@@ -313,15 +313,15 @@ def test_readme_architecture_and_commands_contract() -> None:
         "python services/agents/human-resources/main.py",
         "python services/agents/marketing/main.py",
         "azd provision --no-prompt",
-        "python scripts/provision_knowledge_bases.py",
+        "python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json",
         "pwsh -File scripts/configure_toolboxes.ps1",
         "azd deploy --no-prompt",
-        "python scripts/set_agent_rbac.py",
+        "python scripts/set_agent_rbac.py --report-path artifacts/rbac.json",
         "azd ai agent eval run --config eval.yaml --no-prompt --output json",
         "python scripts/validate_eval_results.py --config eval.yaml",
         "python scripts/configure_continuous_evaluation.py",
         "python scripts/agent365/configure_observability.py",
-        "python scripts/agent365/verify_registry.py --prerequisites-claimed",
+        "python scripts/agent365/verify_registry.py",
         "azd down --purge --force --no-prompt",
     ]
     for command in expected_commands:

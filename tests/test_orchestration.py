@@ -120,6 +120,16 @@ def test_build_department_agent_attaches_two_specialists_and_one_toolbox(monkeyp
         ("code-quality-specialist", "Code quality specialist."),
     ]
     assert coordinator_record["kwargs"]["default_options"] == {"store": False}
+    specialist_defaults = [record["kwargs"].get("default_options") for record in build_calls[:2]]
+    assert specialist_defaults == [{"store": False}, {"store": False}]
+
+
+def test_all_department_prompts_explicitly_assign_final_answer_ownership() -> None:
+    prompts_root = Path("src/lifecycle_agent/prompts")
+    for prompt_name in ["development.md", "human-resources.md", "marketing.md"]:
+        prompt_text = prompts_root.joinpath(prompt_name).read_text(encoding="utf-8")
+        assert "Own the final answer" in prompt_text
+        assert "coordinator" in prompt_text.lower()
 
 
 @pytest.mark.parametrize("specialist_count", [1, 3])

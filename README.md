@@ -79,10 +79,10 @@ python services/agents/marketing/main.py
 ```bash
 azd extension install microsoft.foundry --no-prompt
 azd provision --no-prompt
-python scripts/provision_knowledge_bases.py
+python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
 pwsh -File scripts/configure_toolboxes.ps1
 azd deploy --no-prompt
-python scripts/set_agent_rbac.py
+python scripts/set_agent_rbac.py --report-path artifacts/rbac.json
 ```
 
 ## Evaluate gate
@@ -97,7 +97,7 @@ python scripts/validate_eval_results.py --config eval.yaml --results artifacts/e
 ```bash
 python scripts/configure_continuous_evaluation.py
 python scripts/agent365/configure_observability.py
-python scripts/agent365/verify_registry.py --prerequisites-claimed
+python scripts/agent365/verify_registry.py
 ```
 
 ## Teardown

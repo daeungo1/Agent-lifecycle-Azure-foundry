@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+
+import pytest
+
+import scripts.set_agent_rbac as target
 from scripts.set_agent_rbac import (
     DEPARTMENT_BY_AGENT,
     ROLE_NAME,
@@ -131,3 +137,135 @@ def test_get_project_endpoint_missing_raises(monkeypatch) -> None:
         assert "AZURE_AI_PROJECT_ENDPOINT" in str(exc)
     else:
         raise AssertionError("Expected ValueError when endpoint aliases are missing")
+
+
+def test_apply_search_rbac_reports_planned_and_final_missing_after_recollect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(target, "_load_active_azd_environment", lambda: {})
+    monkeypatch.setattr(target, "_get_project_endpoint", lambda _env: "https://example")
+    monkeypatch.setattr(
+        target,
+        "_get_search_resource_ids",
+        lambda _env: {
+            "shared": "/s/shared",
+            "development": "/s/dev",
+            "human-resources": "/s/hr",
+            "marketing": "/s/mkt",
+        },
+    )
+    monkeypatch.setattr(
+        target,
+        "get_agent_principal_ids",
+        lambda _endpoint: {
+            "development-agent": "p-dev",
+            "human-resources-agent": "p-hr",
+            "marketing-agent": "p-mkt",
+        },
+    )
+    monkeypatch.setattr(target, "resolve_role_definition_id", lambda _name: "role-guid")
+
+    collect_calls = {"count": 0}
+
+    def fake_collect_existing_assignments(*, desired_matrix, all_known_scopes):
+        collect_calls["count"] += 1
+        if collect_calls["count"] == 1:
+            return {agent_name: [] for agent_name in desired_matrix}
+        return {
+            "development-agent": [
+                {"scope": "/s/shared", "roleDefinitionName": ROLE_NAME},
+                {"scope": "/s/dev", "roleDefinitionName": ROLE_NAME},
+            ],
+            "human-resources-agent": [
+                {"scope": "/s/shared", "roleDefinitionName": ROLE_NAME},
+                {"scope": "/s/hr", "roleDefinitionName": ROLE_NAME},
+            ],
+            "marketing-agent": [
+                {"scope": "/s/shared", "roleDefinitionName": ROLE_NAME},
+            ],
+        }
+
+    monkeypatch.setattr(target, "_collect_existing_assignments", fake_collect_existing_assignments)
+    monkeypatch.setattr(target, "_run_json_command", lambda _args: {"created": True})
+
+    report = target.apply_search_rbac(dry_run=False)
+
+    assert report["dryRun"] is False
+    assert len(report["plannedAssignments"]) == 6
+    assert report["missingAssignments"] == [
+        {
+            "agentName": "marketing-agent",
+            "principalId": "p-mkt",
+            "scope": "/s/mkt",
+        }
+    ]
+
+
+def test_apply_search_rbac_dry_run_keeps_final_missing_equal_to_planned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(target, "_load_active_azd_environment", lambda: {})
+    monkeypatch.setattr(target, "_get_project_endpoint", lambda _env: "https://example")
+    monkeypatch.setattr(
+        target,
+        "_get_search_resource_ids",
+        lambda _env: {
+            "shared": "/s/shared",
+            "development": "/s/dev",
+            "human-resources": "/s/hr",
+            "marketing": "/s/mkt",
+        },
+    )
+    monkeypatch.setattr(
+        target,
+        "get_agent_principal_ids",
+        lambda _endpoint: {
+            "development-agent": "p-dev",
+            "human-resources-agent": "p-hr",
+            "marketing-agent": "p-mkt",
+        },
+    )
+    monkeypatch.setattr(target, "resolve_role_definition_id", lambda _name: "role-guid")
+    monkeypatch.setattr(
+        target,
+        "_collect_existing_assignments",
+        lambda *, desired_matrix, all_known_scopes: {
+            agent_name: [] for agent_name in desired_matrix
+        },
+    )
+
+    report = target.apply_search_rbac(dry_run=True)
+
+    assert report["dryRun"] is True
+    assert report["missingAssignments"] == report["plannedAssignments"]
+    assert len(report["missingAssignments"]) == 6
+
+
+def test_main_prints_json_writes_report_and_returns_two_when_missing_non_dry_run(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report_path = tmp_path / "rbac.json"
+    monkeypatch.setattr(
+        target.argparse.ArgumentParser,
+        "parse_args",
+        lambda self: SimpleNamespace(dry_run=False, report_path=str(report_path)),
+    )
+    monkeypatch.setattr(
+        target,
+        "apply_search_rbac",
+        lambda *, dry_run: {
+            "dryRun": False,
+            "plannedAssignments": [{"agentName": "marketing-agent"}],
+            "missingAssignments": [{"agentName": "marketing-agent"}],
+            "forbiddenAssignments": [],
+        },
+    )
+
+    exit_code = target.main()
+    captured = capsys.readouterr().out
+
+    assert exit_code == 2
+    assert json.loads(captured)["missingAssignments"]
+    assert json.loads(report_path.read_text(encoding="utf-8"))["missingAssignments"]

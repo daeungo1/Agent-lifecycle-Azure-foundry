@@ -72,7 +72,7 @@ jobs:
 
       - name: knowledge bases
         run: |
-          python scripts/provision_knowledge_bases.py > artifacts/knowledge-bases.json
+          python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
 
       - name: toolboxes
         run: |
@@ -84,7 +84,7 @@ jobs:
 
       - name: RBAC
         run: |
-          python scripts/set_agent_rbac.py > artifacts/rbac.json
+          python scripts/set_agent_rbac.py --report-path artifacts/rbac.json
 
       - name: three-agent smoke
         run: |
@@ -115,7 +115,11 @@ jobs:
         run: |
           python scripts/configure_continuous_evaluation.py > artifacts/continuous-evaluation.json
           python scripts/agent365/configure_observability.py > artifacts/agent365-observability.json
-          python scripts/agent365/verify_registry.py --prerequisites-claimed > artifacts/agent365-registry.json
+          if [ "${A365_PREREQUISITES_CLAIMED:-false}" = "true" ]; then
+            python scripts/agent365/verify_registry.py --prerequisites-claimed > artifacts/agent365-registry.json
+          else
+            python scripts/agent365/verify_registry.py > artifacts/agent365-registry.json
+          fi
 
       - name: Upload deployment artifacts
         if: always()

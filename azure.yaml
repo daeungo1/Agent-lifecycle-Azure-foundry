@@ -18,7 +18,7 @@ services:
           capacity: 10
 
   development-agent:
-    project: services/agents/development
+    project: .
     host: azure.ai.agent
     language: python
     uses:
@@ -27,7 +27,7 @@ services:
     name: development-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: main.py
+      entryPoint: services/agents/development/main.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT
@@ -47,7 +47,7 @@ services:
         version: 2.0.0
 
   human-resources-agent:
-    project: services/agents/human-resources
+    project: .
     host: azure.ai.agent
     language: python
     uses:
@@ -56,7 +56,7 @@ services:
     name: human-resources-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: main.py
+      entryPoint: services/agents/human-resources/main.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT
@@ -76,7 +76,7 @@ services:
         version: 2.0.0
 
   marketing-agent:
-    project: services/agents/marketing
+    project: .
     host: azure.ai.agent
     language: python
     uses:
@@ -85,7 +85,7 @@ services:
     name: marketing-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: main.py
+      entryPoint: services/agents/marketing/main.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT

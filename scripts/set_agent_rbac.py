@@ -335,7 +335,7 @@ def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
         all_known_scopes=all_known_scopes,
     )
 
-    missing_assignments = _calculate_missing_assignments(
+    planned_assignments = _calculate_missing_assignments(
         desired_matrix=desired_matrix,
         existing_assignments=existing_assignments,
     )
@@ -344,7 +344,7 @@ def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
     created_assignments: list[dict[str, Any]] = []
 
     if not dry_run:
-        for pending in missing_assignments:
+        for pending in planned_assignments:
             args = build_role_assignment_create_args(
                 principal_id=pending["principalId"],
                 scope=pending["scope"],
@@ -359,6 +359,14 @@ def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
             all_known_scopes=all_known_scopes,
         )
 
+    remaining_missing_assignments = _calculate_missing_assignments(
+        desired_matrix=desired_matrix,
+        existing_assignments=existing_assignments,
+    )
+
+    if dry_run:
+        remaining_missing_assignments = list(planned_assignments)
+
     forbidden_assignments = detect_forbidden_assignments(
         desired_matrix=desired_matrix,
         existing_assignments=existing_assignments,
@@ -371,14 +379,14 @@ def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
         },
         "resourceIds": resource_ids,
         "desiredMatrix": desired_matrix,
-        "missingAssignments": missing_assignments,
+        "plannedAssignments": planned_assignments,
+        "missingAssignments": remaining_missing_assignments,
         "createdAssignments": created_assignments,
         "forbiddenAssignments": forbidden_assignments,
         "dryRun": dry_run,
     }
 
-
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Grant least-privilege Search Index Data Reader RBAC "
@@ -398,14 +406,18 @@ def main() -> None:
     args = parser.parse_args()
 
     report = apply_search_rbac(dry_run=args.dry_run)
+    report_json = json.dumps(report, indent=2, sort_keys=True)
+    print(report_json)
 
     report_path = Path(args.report_path)
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(report_json, encoding="utf-8")
 
     if report["forbiddenAssignments"]:
-        print(json.dumps(report, indent=2, sort_keys=True))
-        raise SystemExit(1)
+        return 2
+    if (not args.dry_run) and report["missingAssignments"]:
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

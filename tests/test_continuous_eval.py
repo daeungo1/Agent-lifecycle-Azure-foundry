@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import builtins
+import runpy
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -235,3 +238,42 @@ def test_create_project_client_fails_without_supported_endpoints(
 
     with pytest.raises(RuntimeError, match="FOUNDRY_PROJECT_ENDPOINT"):
         _create_project_client(object())  # type: ignore[arg-type]
+
+
+def test_fallback_evaluation_rule_accepts_full_constructor_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script_path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "configure_continuous_evaluation.py"
+    )
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.startswith("azure.ai.projects"):
+            raise ModuleNotFoundError("forced fallback import")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    namespace = runpy.run_path(str(script_path), run_name="fallback_eval_rule_module")
+
+    action = namespace["ContinuousEvaluationRuleAction"](
+        eval_id="eval-123",
+        max_hourly_runs=5,
+    )
+    rule_filter = namespace["EvaluationRuleFilter"](agent_name="development-agent")
+    rule = namespace["EvaluationRule"](
+        id="rule-123",
+        display_name="rule name",
+        description="rule description",
+        enabled=True,
+        event_type="response_completed",
+        filter=rule_filter,
+        action=action,
+    )
+
+    assert rule.id == "rule-123"
+    assert rule.display_name == "rule name"
+    assert rule.description == "rule description"
+    assert rule.enabled is True
