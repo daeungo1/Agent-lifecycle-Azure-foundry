@@ -12,3 +12,6 @@ __pycache__/
 # Local env
 .venv/
 .env
+
+# Generated Bicep build output
+infra/main.json

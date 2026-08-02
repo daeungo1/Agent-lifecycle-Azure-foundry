@@ -38,3 +38,9 @@ output searchEndpoints array = [
     endpoint: searchBoundaryModules[index].outputs.endpoint
   }
 ]
+
+// The boundary order is defined by infra/main.bicepparam and intentionally stable.
+output FOUNDRYIQ_SEARCH_ENDPOINT_SHARED string = searchBoundaryModules[0].outputs.endpoint
+output FOUNDRYIQ_SEARCH_ENDPOINT_DEVELOPMENT string = searchBoundaryModules[1].outputs.endpoint
+output FOUNDRYIQ_SEARCH_ENDPOINT_HUMAN_RESOURCES string = searchBoundaryModules[2].outputs.endpoint
+output FOUNDRYIQ_SEARCH_ENDPOINT_MARKETING string = searchBoundaryModules[3].outputs.endpoint

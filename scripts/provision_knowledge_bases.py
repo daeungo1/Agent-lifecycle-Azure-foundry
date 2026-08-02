@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -12,6 +13,7 @@ import httpx
 from azure.identity import DefaultAzureCredential
 
 API_VERSION = "2026-04-01"
+SEMANTIC_CONFIGURATION_NAME = "lifecycle-semantic"
 KNOWLEDGE_BOUNDARIES: dict[str, str] = {
     "shared": "knowledge/shared",
     "development": "knowledge/development",
@@ -50,6 +52,10 @@ def search_endpoint_env_var_name(boundary: str) -> str:
     return f"FOUNDRYIQ_SEARCH_ENDPOINT_{boundary.upper().replace('-', '_')}"
 
 
+def knowledge_base_mcp_env_var_name(boundary: str) -> str:
+    return f"KB_MCP_ENDPOINT_{boundary.upper().replace('-', '_')}"
+
+
 def _boundary_token(boundary: str) -> str:
     tokens = {
         "shared": "shared",
@@ -74,16 +80,17 @@ def build_artifact_names(prefix: str, boundary: str) -> ArtifactNames:
 
 
 def _parse_front_matter(document_text: str) -> tuple[dict[str, str], str]:
-    if not document_text.startswith("---\n"):
+    normalized_text = document_text.replace("\r\n", "\n").replace("\r", "\n")
+    if not normalized_text.startswith("---\n"):
         raise ValueError("Document is missing front matter opening delimiter.")
 
     marker = "\n---\n"
-    end_index = document_text.find(marker, 4)
+    end_index = normalized_text.find(marker, 4)
     if end_index == -1:
         raise ValueError("Document is missing front matter closing delimiter.")
 
-    raw_front_matter = document_text[4:end_index]
-    body = document_text[end_index + len(marker) :].strip()
+    raw_front_matter = normalized_text[4:end_index]
+    body = normalized_text[end_index + len(marker) :].strip()
     metadata: dict[str, str] = {}
     for line in raw_front_matter.splitlines():
         key, separator, value = line.partition(":")
@@ -159,6 +166,25 @@ def _build_index_payload(index_name: str) -> dict[str, Any]:
                 "searchable": True,
             },
         ],
+        "semantic": {
+            "defaultConfiguration": SEMANTIC_CONFIGURATION_NAME,
+            "configurations": [
+                {
+                    "name": SEMANTIC_CONFIGURATION_NAME,
+                    "prioritizedFields": {
+                        "titleField": {
+                            "fieldName": "title",
+                        },
+                        "prioritizedContentFields": [
+                            {
+                                "fieldName": "content",
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        "defaultSemanticConfiguration": SEMANTIC_CONFIGURATION_NAME,
     }
 
 
@@ -166,13 +192,19 @@ def _build_knowledge_source_payload(
     *,
     source_name: str,
     index_name: str,
-    classification: str,
+    boundary: str,
 ) -> dict[str, Any]:
     return {
         "name": source_name,
-        "kind": "azureSearchIndex",
-        "indexName": index_name,
-        "classification": classification,
+        "kind": "searchIndex",
+        "description": f"Knowledge source for {boundary} boundary.",
+        "encryptionKey": None,
+        "searchIndexParameters": {
+            "searchIndexName": index_name,
+            "semanticConfigurationName": SEMANTIC_CONFIGURATION_NAME,
+            "sourceDataFields": [],
+            "searchFields": [],
+        },
     }
 
 
@@ -180,13 +212,17 @@ def _build_knowledge_base_payload(
     *,
     knowledge_base_name: str,
     source_name: str,
-    classification: str,
+    boundary: str,
 ) -> dict[str, Any]:
     return {
         "name": knowledge_base_name,
-        "kind": "searchAugmentedGeneration",
-        "knowledgeSourceName": source_name,
-        "classification": classification,
+        "description": f"Knowledge base for {boundary} boundary.",
+        "knowledgeSources": [
+            {
+                "name": source_name,
+            }
+        ],
+        "encryptionKey": None,
     }
 
 
@@ -232,7 +268,7 @@ def build_rest_operations(
             "body": _build_knowledge_source_payload(
                 source_name=names.knowledge_source_name,
                 index_name=names.index_name,
-                classification=boundary,
+                boundary=boundary,
             ),
         },
         {
@@ -244,7 +280,7 @@ def build_rest_operations(
             "body": _build_knowledge_base_payload(
                 knowledge_base_name=names.knowledge_base_name,
                 source_name=names.knowledge_source_name,
-                classification=boundary,
+                boundary=boundary,
             ),
         },
         {
@@ -313,7 +349,25 @@ def _put_operation(
     response.raise_for_status()
 
 
-def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> None:
+def _build_mcp_endpoint(search_endpoint: str, knowledge_base_name: str) -> str:
+    normalized_endpoint = search_endpoint.rstrip("/")
+    return (
+        f"{normalized_endpoint}/knowledgebases/{knowledge_base_name}/mcp"
+        f"?api-version={API_VERSION}"
+    )
+
+
+def _persist_azd_env_values(values: dict[str, str]) -> None:
+    for key, value in values.items():
+        subprocess.run(
+            ["azd", "env", "set", key, value],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+
+def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
     env_values = _load_active_azd_environment()
     prefix = (
         os.getenv("FOUNDRYIQ_NAME_PREFIX")
@@ -326,6 +380,29 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> None:
     if missing:
         missing_vars = ", ".join(search_endpoint_env_var_name(boundary) for boundary in missing)
         raise ValueError(f"Missing required Search endpoint variables: {missing_vars}")
+
+    boundary_plan: dict[str, dict[str, str]] = {}
+    mcp_env_values: dict[str, str] = {}
+    for boundary in KNOWLEDGE_BOUNDARIES:
+        names = build_artifact_names(prefix=prefix, boundary=boundary)
+        mcp_endpoint = _build_mcp_endpoint(endpoints[boundary], names.knowledge_base_name)
+        boundary_plan[boundary] = {
+            "searchEndpoint": endpoints[boundary],
+            "indexName": names.index_name,
+            "knowledgeSourceName": names.knowledge_source_name,
+            "knowledgeBaseName": names.knowledge_base_name,
+            "mcpEndpoint": mcp_endpoint,
+        }
+        mcp_env_values[knowledge_base_mcp_env_var_name(boundary)] = mcp_endpoint
+
+    summary: dict[str, Any] = {
+        "mode": "dry-run" if dry_run else "apply",
+        "plannedEnvVars": mcp_env_values,
+        "boundaries": boundary_plan,
+    }
+
+    if dry_run:
+        return summary
 
     credential = DefaultAzureCredential()
     token = credential.get_token("https://search.azure.com/.default").token
@@ -340,8 +417,6 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> None:
                 names=names,
                 documents=documents,
             )
-            if dry_run:
-                continue
             for operation in operations:
                 _put_operation(
                     client,
@@ -350,6 +425,9 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> None:
                     token=token,
                     body=operation["body"],
                 )
+
+    _persist_azd_env_values(mcp_env_values)
+    return summary
 
 
 def main() -> None:
@@ -362,7 +440,9 @@ def main() -> None:
         help="Validate manifest, naming, and payload construction without Azure REST calls.",
     )
     args = parser.parse_args()
-    provision_foundry_iq_knowledge(dry_run=args.dry_run)
+    summary = provision_foundry_iq_knowledge(dry_run=args.dry_run)
+    if args.dry_run:
+        print(json.dumps(summary, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
