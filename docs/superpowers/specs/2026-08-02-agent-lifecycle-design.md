@@ -2,16 +2,22 @@
 
 ## Purpose
 
-Build a reproducible demonstration repository for the full lifecycle of a Microsoft Foundry Hosted Agent: build, evaluate, deploy, observe, and continuously evaluate production traffic. The repository must provision an isolated demo environment, deploy a working agent, enforce a pre-release quality gate, and activate an operational evaluation loop.
+Build a reproducible enterprise demonstration repository for the full lifecycle of Microsoft Foundry Hosted Agents: build, evaluate, deploy, govern, observe, and continuously evaluate production traffic. The repository must provision an isolated demo environment, deploy department-scoped multi-agent systems, ground them in permission-aware knowledge bases, enforce a pre-release quality gate, and activate an operational evaluation loop.
 
 ## Scope
 
 The demo includes:
 
-- A Python Hosted Agent built with Microsoft Agent Framework.
+- Three Python Hosted Agents built with Microsoft Agent Framework for Development, Human Resources, and Marketing.
+- A coordinator and two specialist agents inside each department service.
 - The OpenAI-compatible Responses protocol, version 2.0.0.
 - Azure Developer CLI configuration for infrastructure and agent deployment.
 - Local development, tests, and VS Code Agent Inspector debugging.
+- A shared Foundry IQ knowledge base and three department-isolated Foundry IQ knowledge bases backed by Azure AI Search.
+- A department-specific Foundry Toolbox that exposes only the shared and matching department knowledge bases.
+- Per-agent managed identities and least-privilege Azure RBAC.
+- Microsoft Agent 365 registry and observability integration that can be activated when tenant prerequisites are available.
+- An OAuth identity passthrough design for user-delegated access without placing raw OBO tokens in agent code.
 - Seed smoke and regression evaluation datasets.
 - Batch evaluation and a deployment quality gate.
 - Application Insights tracing and Foundry monitoring.
@@ -19,17 +25,29 @@ The demo includes:
 - GitHub Actions authentication through OpenID Connect.
 - A private GitHub repository named `Agent-lifecycle-Azure-foundry`.
 
-The demo does not include a business data source, external API, or Foundry Toolbox. Those integrations are extension points and are not required to prove the lifecycle.
+The demo uses synthetic Markdown documents as its business data. It does not connect to a production HR system, source repository, marketing platform, SharePoint tenant, or other external business API. Agent 365 tenant activation and admin approval are conditional because the current tenant license and administrator readiness are unknown.
 
 ## Agent Scenario
 
-The deployed agent is a concise Microsoft Foundry operations guide. It answers questions about building, evaluating, deploying, and operating agents. Its narrow scope keeps the expected behavior deterministic enough for a meaningful lifecycle evaluation while remaining recognizable in a live demonstration.
+Each department exposes one Hosted Agent service containing a coordinator and two specialists:
+
+- Development: architecture and code-quality specialists.
+- Human Resources: policy and onboarding specialists.
+- Marketing: campaign and content specialists.
+
+The coordinator retains task ownership and invokes specialists as tools. This pattern gives each department one stable endpoint and one identity while keeping specialist responsibilities independently testable. Department agents answer from a shared company knowledge base and their own department knowledge base, with citations. They must refuse or report lack of access when asked for another department's private material.
 
 ## Architecture
 
-The agent runs on the Microsoft Foundry Hosted Agent runtime. Microsoft Agent Framework supplies the agent abstraction, `FoundryChatClient`, and automatic OpenTelemetry instrumentation. The Foundry hosting package exposes the agent through the Responses protocol. The platform manages conversation history, streaming, runtime identity, and scale.
+The three department agents run on the Microsoft Foundry Hosted Agent runtime. Microsoft Agent Framework supplies agent abstractions, `FoundryChatClient`, agents-as-tools orchestration, and automatic OpenTelemetry instrumentation. The Foundry hosting package exposes each department coordinator through the Responses protocol. The platform manages conversation history, streaming, runtime identity, and scale.
 
-`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, and a hosted agent service. `azd provision` creates or updates the Azure resources. `azd deploy` packages and publishes a new agent version. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
+`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, three Hosted Agent services, and three toolbox services. Bicep creates one shared Azure AI Search service and one isolated Search service per department. Post-provision hooks create four Foundry IQ knowledge bases and their MCP connections. `azd provision` creates or updates the Azure resources. `azd deploy` publishes toolboxes and immutable department agent versions. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
+
+Every department Hosted Agent receives a distinct instance identity. Its Azure RBAC grants read access to the shared Search service and only its matching department Search service. Separate Search services provide a real resource boundary rather than relying on connection names as a security control.
+
+Each department toolbox exposes two `knowledge_base_retrieve` tools: shared knowledge and its department knowledge. The default authentication mode is Agentic Identity. User-delegated access is an optional connection mode implemented with Toolbox OAuth identity passthrough. Foundry handles consent, token exchange, isolation, refresh, and injection; raw OBO tokens never enter prompts, logs, source code, or agent-managed caches.
+
+Published Foundry agents automatically synchronize to the Microsoft Agent 365 registry when the tenant is licensed and enabled. Hosted Agent activity export uses the Agent 365 observability extension and the `Agent365.Observability.OtelWrite` app role. Agent 365 is the governance and inventory control plane; Microsoft Entra Agent ID and Azure RBAC remain the enforcement plane.
 
 Application Insights receives server-side Hosted Agent telemetry. Sensitive prompt and response content is not enabled by default. Foundry's monitoring dashboard surfaces latency, token usage, run success, and evaluation scores.
 
@@ -51,16 +69,33 @@ Application Insights receives server-side Hosted Agent telemetry. Sensitive prom
 |   |-- launch.json
 |   `-- tasks.json
 |-- docs/
+|   |-- architecture/
+|   |   |-- enterprise-agent-lifecycle.excalidraw
+|   |   `-- enterprise-agent-lifecycle.png
 |   |-- operations.md
 |   `-- superpowers/
 |       `-- specs/
 |-- evals/
 |   |-- data/
+|   |   |-- development.jsonl
+|   |   |-- human-resources.jsonl
+|   |   |-- marketing.jsonl
 |   |   |-- regression.jsonl
-|   |   `-- smoke.jsonl
+|   |   `-- security-boundaries.jsonl
 |   `-- validate_dataset.py
+|-- knowledge/
+|   |-- shared/
+|   |-- development/
+|   |-- human-resources/
+|   `-- marketing/
 |-- scripts/
+|   |-- agent365/
+|   |   |-- configure_observability.py
+|   |   `-- verify_registry.py
 |   |-- configure_continuous_evaluation.py
+|   |-- provision_knowledge_bases.py
+|   |-- render-excalidraw.py
+|   |-- set_agent_rbac.py
 |   |-- verify_deployment.py
 |   `-- verify_environment.ps1
 |-- src/
@@ -68,9 +103,17 @@ Application Insights receives server-side Hosted Agent telemetry. Sensitive prom
 |       |-- __init__.py
 |       |-- config.py
 |       |-- main.py
+|       |-- orchestration.py
 |       `-- prompts/
-|           `-- system.md
+|           |-- development.md
+|           |-- human-resources.md
+|           `-- marketing.md
 |-- tests/
+|-- toolboxes/
+|   |-- development.yaml
+|   |-- human-resources.yaml
+|   `-- marketing.yaml
+|-- departments.yaml
 |-- .env.example
 |-- .gitignore
 |-- AGENTS.md
@@ -85,10 +128,13 @@ Application Insights receives server-side Hosted Agent telemetry. Sensitive prom
 
 1. Install the pinned dependencies from `requirements.txt` into a virtual environment.
 2. Load the Foundry project endpoint and model deployment name from environment variables.
-3. Create the Agent Framework agent with `store` disabled because the Hosted Agent Responses runtime owns conversation history.
-4. Start the Responses server on port 8088 for local development.
-5. Use Ruff and Pytest for fast local validation.
-6. Use the VS Code task and launch configuration for Agent Inspector and debugger attachment.
+3. Select the department configuration from the `DEPARTMENT` environment variable.
+4. Create two specialist agents and expose them as tools to the department coordinator.
+5. Attach the department toolbox MCP endpoint to the coordinator.
+6. Keep `store` disabled because the Hosted Agent Responses runtime owns conversation history.
+7. Start the Responses server on port 8088 for local development.
+8. Use Ruff and Pytest for fast local validation.
+9. Use the VS Code task and launch configuration for Agent Inspector and debugger attachment.
 
 The implementation uses `DefaultAzureCredential`; it never accepts or stores an Azure API key.
 
@@ -101,6 +147,9 @@ The initial evaluation dimensions are:
 - Intent resolution.
 - Task adherence.
 - Response relevance.
+- Tool-call accuracy.
+- Groundedness and citation presence.
+- Department authorization boundaries.
 
 `eval.yaml` defines the target agent, seed dataset, evaluators, maximum sample count, and passing threshold. CI runs the same recipe used locally. A failed threshold blocks the release workflow. Evaluation output is persisted as a workflow artifact; generated local results are ignored by Git unless explicitly curated.
 
@@ -114,16 +163,21 @@ A merge to `main` or a manual dispatch runs the deployment workflow:
 2. Install `azd` and the Foundry extensions.
 3. Restore the named `azd` environment.
 4. Run `azd provision` and `azd deploy` non-interactively.
-5. Verify the Hosted Agent reaches an active state.
-6. Invoke a representative smoke prompt.
-7. Run the stored evaluation recipe and enforce its threshold.
-8. Verify that the continuous evaluation rule is enabled.
+5. Create or update the four Foundry IQ knowledge bases and three department toolboxes.
+6. Grant each Hosted Agent identity access to the shared and matching department Search services only.
+7. Verify all three Hosted Agents reach an active state.
+8. Invoke a representative smoke prompt for each department.
+9. Run department, grounding, and cross-department denial evaluations and enforce their thresholds.
+10. Verify that each continuous evaluation rule is enabled.
+11. When Agent 365 prerequisites are present, grant the observability role and verify registry visibility; otherwise emit an actionable skipped result.
 
 The workflow identity receives only the roles required by provisioning, agent deployment, evaluation, and telemetry access. Repository variables hold non-secret identifiers. No long-lived client secret is used.
 
 ## Operate Flow
 
-The first deployment connects Application Insights and enables server-side tracing. Operators use Foundry Monitor for latency, token usage, success rate, and evaluation trends. The continuous evaluation setup script creates an evaluation definition and an enabled response-completed rule filtered to the deployed agent, with a bounded hourly run count.
+The first deployment connects Application Insights and enables server-side tracing. Operators use Foundry Monitor for latency, token usage, success rate, retrieval behavior, and evaluation trends. The continuous evaluation setup script creates one evaluation definition and enabled response-completed rule per deployed department agent, with bounded hourly run counts.
+
+When enabled, Agent 365 receives identity-tagged activity through its OpenTelemetry integration. Administrators use the Agent 365 registry for inventory, ownership, lifecycle controls, and access reviews. The integration suppresses sensitive invocation input by default. Agent 365 data residency follows the Entra tenant and is documented separately from Foundry's Azure-region residency.
 
 Production traces form the feedback loop:
 
@@ -150,11 +204,16 @@ The repository is complete when all of the following are demonstrated:
 - Evaluation datasets pass schema validation.
 - The local Hosted Agent starts successfully when Foundry configuration is supplied.
 - The dedicated Azure environment provisions successfully.
-- The Hosted Agent deploys and reaches an active state.
-- A remote smoke invocation returns a valid response.
-- The initial batch evaluation completes and meets the configured threshold.
+- Four Search services and four Foundry IQ knowledge bases are created and queryable.
+- Three department toolboxes expose only their shared and matching private knowledge tools.
+- All three Hosted Agents deploy and reach an active state.
+- Remote smoke invocations return valid, cited responses for all departments.
+- Cross-department private knowledge checks are denied or return no restricted content.
+- The initial department and security batch evaluations complete and meet configured thresholds.
 - Application Insights receives Hosted Agent telemetry.
-- The continuous evaluation rule exists, is enabled, and targets the deployed agent.
+- Continuous evaluation rules exist, are enabled, and target all deployed department agents.
+- Agent 365 integration reports either verified registry/telemetry status or a precise prerequisite-skipped status.
+- The README renders the Excalidraw architecture PNG and links to its editable source.
 - The private GitHub repository contains the verified implementation and workflows.
 
 ## Operational Constraints
@@ -162,4 +221,8 @@ The repository is complete when all of the following are demonstrated:
 - Azure and Foundry authentication remain user-owned interactive steps. Automation uses existing authenticated sessions or workload identity.
 - The chosen model and region must be validated against the user's subscription before provisioning.
 - Continuous evaluation and some `azd ai agent eval` features are preview capabilities and are not represented as generally available production guarantees.
+- Foundry IQ portal experiences, query-time ACL features, and some toolbox capabilities can be preview even when core agentic retrieval APIs are generally available.
+- Agent 365 live activation requires a qualifying license, tenant enablement, accepted terms, and Microsoft 365 or Entra administrator actions that cannot be automated without those privileges.
+- OAuth identity passthrough requires same-tenant users with at least the Foundry Agent Consumer role; cross-tenant token exchange is not supported.
+- The four Azure AI Search services are intentional security boundaries and create additional recurring cost.
 - Resource creation incurs Azure charges until the demo environment is removed.
