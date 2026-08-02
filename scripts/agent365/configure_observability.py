@@ -1,33 +1,49 @@
 from __future__ import annotations
 
+import importlib
+import importlib.metadata
 import json
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-MICROSOFT_OTEL_DISTRO_PACKAGE = "microsoft-opentelemetry"
-A365_EXTENSION_PACKAGES = [
-    "microsoft-agents-a365-observability-extensions-agent-framework",
-    "microsoft-agents-a365-observability-core",
-    "microsoft-agents-a365-runtime",
+A365_REQUIRED_COMPONENTS = [
+    {
+        "distribution": "microsoft-agents-a365-observability-extensions-agent-framework",
+        "module": "microsoft.opentelemetry.a365.extensions.agent_framework",
+    },
+    {
+        "distribution": "microsoft-agents-a365-observability-core",
+        "module": "microsoft.opentelemetry.a365.core",
+    },
+    {
+        "distribution": "microsoft-agents-a365-runtime",
+        "module": "microsoft.opentelemetry.a365",
+    },
 ]
+ENABLE_EXPORTER_ENV = "ENABLE_A365_OBSERVABILITY_EXPORTER"
 
 
 @dataclass
-class PackageIndexClient:
-    timeout_seconds: float = 3.0
-
-    def has_package(self, package_name: str) -> bool:
-        url = f"https://pypi.org/pypi/{package_name}/json"
-        request = urllib.request.Request(url=url, method="GET")
+class LocalPackageInspector:
+    def has_distribution(self, package_name: str) -> bool:
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                return response.status == 200
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                return False
-            raise
+            importlib.metadata.version(package_name)
+            return True
+        except importlib.metadata.PackageNotFoundError:
+            return False
+
+    def is_importable(self, package_name: str) -> bool:
+        try:
+            importlib.import_module(package_name)
+            return True
+        except ModuleNotFoundError:
+            return False
+
+
+def _is_truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _status(
@@ -48,34 +64,57 @@ def _status(
 def evaluate_agent365_observability_readiness(
     *,
     package_index: Any | None = None,
-    prefer_microsoft_otel_distro: bool = True,
+    env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    package_index = package_index or PackageIndexClient()
+    package_index = package_index or LocalPackageInspector()
+    env = env or {}
 
     safe_defaults = {
         "a365_suppress_invoke_agent_input": True,
     }
+    enabled = _is_truthy(env.get(ENABLE_EXPORTER_ENV))
 
-    if prefer_microsoft_otel_distro and package_index.has_package(MICROSOFT_OTEL_DISTRO_PACKAGE):
+    missing_distributions: list[str] = []
+    missing_modules: list[str] = []
+    for component in A365_REQUIRED_COMPONENTS:
+        distribution = str(component["distribution"])
+        module_name = str(component["module"])
+        if not package_index.has_distribution(distribution):
+            missing_distributions.append(distribution)
+        if not package_index.is_importable(module_name):
+            missing_modules.append(module_name)
+
+    if enabled and (missing_distributions or missing_modules):
         return _status(
-            status="verified",
+            status="failed",
             reason=(
-                "Microsoft OpenTelemetry distro is available for "
-                "Agent 365 observability integration."
+                "ENABLE_A365_OBSERVABILITY_EXPORTER=true but required Agent365 components "
+                "are missing or not importable. Missing distributions: "
+                + (", ".join(missing_distributions) if missing_distributions else "none")
+                + "; missing modules: "
+                + (", ".join(missing_modules) if missing_modules else "none")
             ),
-            runtime_observability="microsoft-otel-distro",
+            runtime_observability="app-insights-fallback",
             settings=safe_defaults,
         )
 
-    missing_packages = [
-        pkg for pkg in A365_EXTENSION_PACKAGES if not package_index.has_package(pkg)
-    ]
-    if missing_packages:
+    if not enabled:
         return _status(
             status="prerequisite-skipped",
             reason=(
-                "Agent 365 package prerequisites are unavailable from the package index: "
-                + ", ".join(missing_packages)
+                "ENABLE_A365_OBSERVABILITY_EXPORTER is not set to true. "
+                "Using App Insights-compatible fallback configuration."
+            ),
+            runtime_observability="app-insights",
+            settings=safe_defaults,
+        )
+
+    if missing_distributions or missing_modules:
+        return _status(
+            status="prerequisite-skipped",
+            reason=(
+                "Agent365 observability prerequisites are not fully available "
+                "in this environment."
             ),
             runtime_observability="app-insights",
             settings=safe_defaults,
@@ -83,15 +122,19 @@ def evaluate_agent365_observability_readiness(
 
     return _status(
         status="verified",
-        reason="Agent 365 extension packages are available.",
-        runtime_observability="a365-extension-packages",
+        reason="Agent365 extension/runtime packages are installed and importable.",
+        runtime_observability="a365-exporter",
         settings=safe_defaults,
     )
 
 
 def main() -> int:
-    status = evaluate_agent365_observability_readiness()
+    import os
+
+    status = evaluate_agent365_observability_readiness(env=dict(os.environ))
     print(json.dumps(status, indent=2))
+    if status["status"] == "failed":
+        return 2
     return 0
 
 

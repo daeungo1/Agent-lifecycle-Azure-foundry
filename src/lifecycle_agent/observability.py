@@ -18,7 +18,7 @@ def _is_truthy(value: str | None) -> bool:
 def _load_microsoft_observability_entrypoint() -> Callable[..., None] | None:
     try:
         module = importlib.import_module("microsoft.opentelemetry")
-    except ModuleNotFoundError:
+    except Exception:
         return None
 
     return getattr(module, "use_microsoft_opentelemetry", None)

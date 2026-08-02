@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
+
+import pytest
 
 from scripts.configure_continuous_evaluation import (
     DEFAULT_MAX_HOURLY_RUNS,
     DEPARTMENT_AGENT_NAMES,
+    _create_project_client,
+    _iter_items,
     configure_continuous_evaluation,
 )
 
@@ -16,11 +21,23 @@ class _FakeEval:
 
 
 class _FakeEvalsApi:
-    def __init__(self, existing: list[_FakeEval]) -> None:
+    def __init__(
+        self,
+        existing: list[_FakeEval],
+        *,
+        list_result: object | None = None,
+        list_error: Exception | None = None,
+    ) -> None:
         self._existing = existing
+        self._list_result = list_result
+        self._list_error = list_error
         self.created: list[dict[str, object]] = []
 
     def list(self):
+        if self._list_error is not None:
+            raise self._list_error
+        if self._list_result is not None:
+            return self._list_result
         return list(self._existing)
 
     def create(self, **kwargs):
@@ -33,6 +50,10 @@ class _FakeEvalsApi:
 class _FakeOpenAIClient:
     def __init__(self, evals_api: _FakeEvalsApi) -> None:
         self.evals = evals_api
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class _FakeEvaluationRulesApi:
@@ -50,6 +71,19 @@ class _FakeProjectClient:
 
     def get_openai_client(self) -> _FakeOpenAIClient:
         return self._openai_client
+
+
+class _IterablePager:
+    def __init__(self, rows: list[object]) -> None:
+        self._rows = rows
+
+    def __iter__(self):
+        return iter(self._rows)
+
+
+class _DataTupleContainer:
+    def __init__(self, rows: tuple[object, ...]) -> None:
+        self.data = rows
 
 
 def test_configure_continuous_evaluation_reuses_existing_eval_by_name() -> None:
@@ -72,6 +106,9 @@ def test_configure_continuous_evaluation_reuses_existing_eval_by_name() -> None:
     assert len(project_client.evaluation_rules.calls) == 3
     for rule_id, rule in project_client.evaluation_rules.calls:
         assert rule_id.startswith("continuous-response-completed-")
+        assert getattr(rule, "display_name")
+        assert getattr(rule, "description")
+        assert getattr(rule, "enabled") is True
         assert getattr(rule.action, "max_hourly_runs") <= DEFAULT_MAX_HOURLY_RUNS
         assert getattr(rule.action, "max_hourly_runs") == DEFAULT_MAX_HOURLY_RUNS
         eval_id = getattr(rule.action, "eval_id")
@@ -86,8 +123,27 @@ def test_configure_continuous_evaluation_uses_department_filters_and_response_co
 
     assert len(evals_api.created) == 3
     for payload in evals_api.created:
-        assert payload["testing_criteria"] == ["intent_resolution", "task_adherence", "relevance"]
-        assert payload["data_source_config"] == {"type": "response_completed"}
+        assert payload["data_source_config"] == {
+            "type": "azure_ai_source",
+            "scenario": "responses",
+        }
+        assert payload["testing_criteria"] == [
+            {
+                "type": "azure_ai_evaluator",
+                "name": "intent_resolution",
+                "evaluator_name": "builtin.intent_resolution",
+            },
+            {
+                "type": "azure_ai_evaluator",
+                "name": "task_adherence",
+                "evaluator_name": "builtin.task_adherence",
+            },
+            {
+                "type": "azure_ai_evaluator",
+                "name": "relevance",
+                "evaluator_name": "builtin.relevance",
+            },
+        ]
 
     assert len(project_client.evaluation_rules.calls) == 3
     seen_agents = set()
@@ -98,3 +154,84 @@ def test_configure_continuous_evaluation_uses_department_filters_and_response_co
         assert "completed" in event_type
 
     assert seen_agents == set(DEPARTMENT_AGENT_NAMES.values())
+
+
+def test_iter_items_accepts_data_tuple_and_iterable_pager() -> None:
+    rows = [SimpleNamespace(id="eval-1", name="continuous-eval-development")]
+
+    assert _iter_items(_DataTupleContainer(tuple(rows))) == rows
+    assert _iter_items(_IterablePager(rows)) == rows
+
+
+def test_iter_items_rejects_string_and_dict_iterables() -> None:
+    assert _iter_items("abc") == []
+    assert _iter_items({"id": "eval-1"}) == []
+
+
+def test_configure_continuous_evaluation_fails_when_list_api_errors() -> None:
+    evals_api = _FakeEvalsApi(existing=[], list_error=RuntimeError("list unavailable"))
+    project_client = _FakeProjectClient(openai_client=_FakeOpenAIClient(evals_api=evals_api))
+
+    with pytest.raises(RuntimeError, match="list unavailable"):
+        configure_continuous_evaluation(project_client=project_client)
+
+
+def test_configure_continuous_evaluation_fails_when_list_api_missing() -> None:
+    openai_client = SimpleNamespace(evals=SimpleNamespace(create=lambda **_: None))
+    project_client = _FakeProjectClient(openai_client=openai_client)
+
+    with pytest.raises(RuntimeError, match="evals.list"):
+        configure_continuous_evaluation(project_client=project_client)
+
+
+def test_create_project_client_requires_foundry_project_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://example.foundry.azure.com")
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+
+    created: dict[str, object] = {}
+
+    class _FakeClient:
+        def __init__(self, *, endpoint: str, credential: object) -> None:
+            created["endpoint"] = endpoint
+            created["credential"] = credential
+
+    monkeypatch.setattr("scripts.configure_continuous_evaluation.AIProjectClient", _FakeClient)
+    credential = object()
+
+    _create_project_client(credential)  # type: ignore[arg-type]
+
+    assert created["endpoint"] == "https://example.foundry.azure.com"
+    assert created["credential"] is credential
+
+
+def test_create_project_client_supports_azure_ai_project_endpoint_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.setenv("AZURE_AI_PROJECT_ENDPOINT", "https://alias.foundry.azure.com")
+
+    created: dict[str, object] = {}
+
+    class _FakeClient:
+        def __init__(self, *, endpoint: str, credential: object) -> None:
+            created["endpoint"] = endpoint
+            created["credential"] = credential
+
+    monkeypatch.setattr("scripts.configure_continuous_evaluation.AIProjectClient", _FakeClient)
+
+    _create_project_client(object())  # type: ignore[arg-type]
+
+    assert created["endpoint"] == "https://alias.foundry.azure.com"
+
+
+def test_create_project_client_fails_without_supported_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.setenv("AZURE_FOUNDRY_PROJECT_CONNECTION_STRING", "Endpoint=legacy")
+
+    with pytest.raises(RuntimeError, match="FOUNDRY_PROJECT_ENDPOINT"):
+        _create_project_client(object())  # type: ignore[arg-type]

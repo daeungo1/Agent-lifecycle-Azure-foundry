@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,6 +39,23 @@ from azure.identity import DefaultAzureCredential
 
 DEFAULT_MAX_HOURLY_RUNS = 20
 BUILTIN_EVALUATORS = ["intent_resolution", "task_adherence", "relevance"]
+TESTING_CRITERIA = [
+    {
+        "type": "azure_ai_evaluator",
+        "name": "intent_resolution",
+        "evaluator_name": "builtin.intent_resolution",
+    },
+    {
+        "type": "azure_ai_evaluator",
+        "name": "task_adherence",
+        "evaluator_name": "builtin.task_adherence",
+    },
+    {
+        "type": "azure_ai_evaluator",
+        "name": "relevance",
+        "evaluator_name": "builtin.relevance",
+    },
+]
 DEPARTMENT_AGENT_NAMES = {
     "development": "development-agent",
     "human-resources": "human-resources-agent",
@@ -56,10 +74,19 @@ def _iter_items(value: Any) -> list[Any]:
         return value
     if isinstance(value, tuple):
         return list(value)
+    if isinstance(value, (str, bytes, dict)):
+        return []
 
     data = getattr(value, "data", None)
     if isinstance(data, list):
         return data
+    if isinstance(data, tuple):
+        return list(data)
+    if isinstance(data, Iterable) and not isinstance(data, (str, bytes, dict)):
+        return list(data)
+
+    if isinstance(value, Iterable):
+        return list(value)
 
     return []
 
@@ -75,13 +102,17 @@ def _build_rule_id(department: str) -> str:
 def _find_eval_id_by_name(*, openai_client: Any, eval_name: str) -> str | None:
     evals_api = getattr(openai_client, "evals", None)
     if evals_api is None:
-        return None
+        raise RuntimeError("OpenAI evals API is unavailable on the project OpenAI client.")
 
     list_fn = getattr(evals_api, "list", None)
     if not callable(list_fn):
-        return None
+        raise RuntimeError("OpenAI evals.list is unavailable on the project OpenAI client.")
 
-    existing = _iter_items(list_fn())
+    try:
+        existing = _iter_items(list_fn())
+    except Exception as exc:
+        raise RuntimeError(f"OpenAI evals.list failed: {exc}") from exc
+
     for item in existing:
         if getattr(item, "name", None) == eval_name:
             eval_id = getattr(item, "id", None)
@@ -98,8 +129,8 @@ def _create_eval_definition(*, openai_client: Any, eval_name: str) -> str:
 
     created = create_fn(
         name=eval_name,
-        data_source_config={"type": "response_completed"},
-        testing_criteria=BUILTIN_EVALUATORS,
+        data_source_config={"type": "azure_ai_source", "scenario": "responses"},
+        testing_criteria=TESTING_CRITERIA,
     )
     eval_id = getattr(created, "id", None)
     if not isinstance(eval_id, str) or not eval_id:
@@ -110,9 +141,11 @@ def _create_eval_definition(*, openai_client: Any, eval_name: str) -> str:
 def configure_continuous_evaluation(
     *,
     project_client: Any,
+    openai_client: Any | None = None,
     max_hourly_runs: int = DEFAULT_MAX_HOURLY_RUNS,
 ) -> list[dict[str, str]]:
-    openai_client = project_client.get_openai_client()
+    if openai_client is None:
+        openai_client = project_client.get_openai_client()
     bounded_runs = _bounded_hourly_runs(max_hourly_runs)
     configured: list[dict[str, str]] = []
 
@@ -127,6 +160,13 @@ def configure_continuous_evaluation(
             max_hourly_runs=bounded_runs,
         )
         rule = EvaluationRule(
+            id=_build_rule_id(department),
+            display_name=f"Continuous evaluation for {department}",
+            description=(
+                f"Runs response-completed continuous evaluation for {agent_name} "
+                f"using builtin evaluators: {', '.join(BUILTIN_EVALUATORS)}"
+            ),
+            enabled=True,
             event_type=EvaluationRuleEventType.RESPONSE_COMPLETED,
             filter=EvaluationRuleFilter(agent_name=agent_name),
             action=action,
@@ -147,18 +187,11 @@ def configure_continuous_evaluation(
 
 
 def _create_project_client(credential: DefaultAzureCredential) -> Any:
-    connection_string = os.getenv("AZURE_FOUNDRY_PROJECT_CONNECTION_STRING")
-    if connection_string:
-        return AIProjectClient.from_connection_string(
-            conn_str=connection_string,
-            credential=credential,
-        )
-
-    endpoint = os.getenv("AZURE_FOUNDRY_PROJECT_ENDPOINT")
+    endpoint = os.getenv("FOUNDRY_PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
     if not endpoint:
         raise RuntimeError(
-            "Set AZURE_FOUNDRY_PROJECT_CONNECTION_STRING or "
-            "AZURE_FOUNDRY_PROJECT_ENDPOINT before running."
+            "Set FOUNDRY_PROJECT_ENDPOINT (preferred) or AZURE_AI_PROJECT_ENDPOINT "
+            "before running."
         )
 
     return AIProjectClient(endpoint=endpoint, credential=credential)
@@ -167,12 +200,21 @@ def _create_project_client(credential: DefaultAzureCredential) -> Any:
 def main() -> int:
     credential = DefaultAzureCredential()
     project_client = None
+    openai_client = None
     try:
         project_client = _create_project_client(credential)
-        configured = configure_continuous_evaluation(project_client=project_client)
+        openai_client = project_client.get_openai_client()
+        configured = configure_continuous_evaluation(
+            project_client=project_client,
+            openai_client=openai_client,
+        )
         print(json.dumps({"configured_rules": configured}, indent=2))
         return 0
     finally:
+        if openai_client is not None:
+            close_openai = getattr(openai_client, "close", None)
+            if callable(close_openai):
+                close_openai()
         if project_client is not None:
             close_client = getattr(project_client, "close", None)
             if callable(close_client):
