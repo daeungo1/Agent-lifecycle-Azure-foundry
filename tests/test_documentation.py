@@ -264,7 +264,7 @@ def test_architecture_png_contract() -> None:
 
         non_white = 0
         total = width * height
-        for r, g, b in rgb.getdata():
+        for r, g, b in rgb.get_flattened_data():
             if (r, g, b) != (255, 255, 255):
                 non_white += 1
         assert non_white > max(5000, total // 200), "Image cannot be all-white"
