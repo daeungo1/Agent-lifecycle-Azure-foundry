@@ -1,2 +1,14 @@
 .worktrees/
 .superpowers/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local env
+.venv/
+.env

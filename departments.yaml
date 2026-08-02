@@ -1,0 +1,27 @@
+departments:
+  - name: development
+    description: Development department lifecycle assistant.
+    prompt: src/lifecycle_agent/prompts/development.md
+    specialists:
+      - name: architecture-specialist
+        description: Focuses on architecture trade-offs and system design decisions.
+      - name: code-quality-specialist
+        description: Focuses on code quality, reliability, and maintainability practices.
+
+  - name: human-resources
+    description: Human resources department lifecycle assistant.
+    prompt: src/lifecycle_agent/prompts/human-resources.md
+    specialists:
+      - name: policy-specialist
+        description: Focuses on policy interpretation and compliance boundaries.
+      - name: onboarding-specialist
+        description: Focuses on onboarding workflows and role-specific guidance.
+
+  - name: marketing
+    description: Marketing department lifecycle assistant.
+    prompt: src/lifecycle_agent/prompts/marketing.md
+    specialists:
+      - name: campaign-specialist
+        description: Focuses on campaign planning and audience strategy.
+      - name: content-specialist
+        description: Focuses on content quality, voice, and channel fit.
