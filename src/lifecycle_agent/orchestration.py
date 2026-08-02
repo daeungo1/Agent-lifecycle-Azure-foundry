@@ -16,6 +16,11 @@ def build_department_agent(
     settings: Settings,
     credential: object,
 ) -> Agent:
+    if len(config.specialists) != 2:
+        raise ValueError(
+            f"Department '{config.name}' must define exactly two specialists"
+        )
+
     client = FoundryChatClient(
         project_endpoint=settings.foundry_project_endpoint,
         model=settings.azure_ai_model_deployment_name,

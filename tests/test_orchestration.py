@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from src.lifecycle_agent.config import DepartmentConfig, Settings, SpecialistConfig
 from src.lifecycle_agent.orchestration import build_department_agent, build_toolbox
 
@@ -118,3 +120,41 @@ def test_build_department_agent_attaches_two_specialists_and_one_toolbox(monkeyp
         ("code-quality-specialist", "Code quality specialist."),
     ]
     assert coordinator_record["kwargs"]["default_options"] == {"store": False}
+
+
+@pytest.mark.parametrize("specialist_count", [1, 3])
+def test_build_department_agent_requires_exactly_two_specialists(
+    monkeypatch: pytest.MonkeyPatch,
+    specialist_count: int,
+) -> None:
+    specialists = tuple(
+        SpecialistConfig(f"specialist-{index}", f"Specialist {index}")
+        for index in range(specialist_count)
+    )
+    department = DepartmentConfig(
+        name="development",
+        description="Development department lifecycle assistant.",
+        prompt_path=Path("src/lifecycle_agent/prompts/development.md"),
+        specialists=specialists,
+    )
+
+    class FakeAgent:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+    class FakeFoundryChatClient:
+        def __init__(self, **_kwargs):
+            pass
+
+    monkeypatch.setattr("src.lifecycle_agent.orchestration.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "src.lifecycle_agent.orchestration.FoundryChatClient",
+        FakeFoundryChatClient,
+    )
+    monkeypatch.setattr(
+        "src.lifecycle_agent.orchestration.build_toolbox",
+        lambda *_args, **_kwargs: object(),
+    )
+
+    with pytest.raises(ValueError, match="exactly two specialists"):
+        build_department_agent(department, _settings(), _Credential())
