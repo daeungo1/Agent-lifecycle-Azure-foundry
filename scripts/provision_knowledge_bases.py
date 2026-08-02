@@ -255,11 +255,13 @@ def build_rest_operations(
     normalized_endpoint = endpoint.rstrip("/")
     return [
         {
+            "operation": "upsert-index",
             "method": "PUT",
             "url": f"{normalized_endpoint}/indexes/{names.index_name}?api-version={API_VERSION}",
             "body": _build_index_payload(names.index_name),
         },
         {
+            "operation": "upsert-knowledge-source",
             "method": "PUT",
             "url": (
                 f"{normalized_endpoint}/knowledgeSources/{names.knowledge_source_name}"
@@ -272,6 +274,7 @@ def build_rest_operations(
             ),
         },
         {
+            "operation": "upsert-knowledge-base",
             "method": "PUT",
             "url": (
                 f"{normalized_endpoint}/knowledgeBases/{names.knowledge_base_name}"
@@ -284,6 +287,7 @@ def build_rest_operations(
             ),
         },
         {
+            "operation": "ingest-documents",
             "method": "POST",
             "url": (
                 f"{normalized_endpoint}/indexes/{names.index_name}/docs/search.index"
@@ -331,22 +335,30 @@ def _resolve_search_endpoints(env_values: dict[str, str]) -> dict[str, str]:
 def _put_operation(
     client: httpx.Client,
     *,
+    boundary: str,
+    operation: str,
     method: str,
     url: str,
     token: str,
     body: dict[str, Any],
 ) -> None:
-    response = client.request(
-        method,
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json=body,
-        timeout=30,
-    )
-    response.raise_for_status()
+    try:
+        response = client.request(
+            method,
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=30,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Search operation '{operation}' failed for boundary '{boundary}' "
+            f"({method} request)."
+        ) from exc
 
 
 def _build_mcp_endpoint(search_endpoint: str, knowledge_base_name: str) -> str:
@@ -405,26 +417,33 @@ def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
         return summary
 
     credential = DefaultAzureCredential()
-    token = credential.get_token("https://search.azure.com/.default").token
+    try:
+        token = credential.get_token("https://search.azure.com/.default").token
 
-    with httpx.Client() as client:
-        for boundary in KNOWLEDGE_BOUNDARIES:
-            documents = load_boundary_documents(boundary)
-            names = build_artifact_names(prefix=prefix, boundary=boundary)
-            operations = build_rest_operations(
-                boundary=boundary,
-                endpoint=endpoints[boundary],
-                names=names,
-                documents=documents,
-            )
-            for operation in operations:
-                _put_operation(
-                    client,
-                    method=operation["method"],
-                    url=operation["url"],
-                    token=token,
-                    body=operation["body"],
+        with httpx.Client() as client:
+            for boundary in KNOWLEDGE_BOUNDARIES:
+                documents = load_boundary_documents(boundary)
+                names = build_artifact_names(prefix=prefix, boundary=boundary)
+                operations = build_rest_operations(
+                    boundary=boundary,
+                    endpoint=endpoints[boundary],
+                    names=names,
+                    documents=documents,
                 )
+                for operation in operations:
+                    _put_operation(
+                        client,
+                        boundary=boundary,
+                        operation=operation["operation"],
+                        method=operation["method"],
+                        url=operation["url"],
+                        token=token,
+                        body=operation["body"],
+                    )
+    finally:
+        close = getattr(credential, "close", None)
+        if callable(close):
+            close()
 
     _persist_azd_env_values(mcp_env_values)
     return summary

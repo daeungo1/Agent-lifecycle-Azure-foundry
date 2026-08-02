@@ -82,6 +82,12 @@ def test_rest_payload_builder_uses_expected_api_shapes() -> None:
         documents=documents,
     )
 
+    assert [operation["operation"] for operation in operations] == [
+        "upsert-index",
+        "upsert-knowledge-source",
+        "upsert-knowledge-base",
+        "ingest-documents",
+    ]
     assert [operation["method"] for operation in operations] == ["PUT", "PUT", "PUT", "POST"]
     assert operations[0]["url"].endswith(f"/indexes/{names.index_name}?api-version={API_VERSION}")
     assert operations[1]["url"].endswith(
@@ -291,11 +297,18 @@ def test_operation_failure_stops_before_mcp_endpoint_env_persistence(
     _set_required_endpoint_env_vars(monkeypatch)
     monkeypatch.setenv("FOUNDRYIQ_NAME_PREFIX", "enterprise-lifecycle")
 
-    monkeypatch.setattr(
-        pkb,
-        "DefaultAzureCredential",
-        lambda: Mock(get_token=lambda _scope: Mock(token="fake-token")),
-    )
+    class _CredentialWithClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def get_token(self, _scope: str) -> Mock:
+            return Mock(token="fake-token")
+
+        def close(self) -> None:
+            self.closed = True
+
+    credential = _CredentialWithClose()
+    monkeypatch.setattr(pkb, "DefaultAzureCredential", lambda: credential)
 
     class FailingResponse:
         def raise_for_status(self) -> None:
@@ -332,11 +345,73 @@ def test_operation_failure_stops_before_mcp_endpoint_env_persistence(
 
     monkeypatch.setattr(pkb.subprocess, "run", fake_run)
 
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(
+        RuntimeError,
+        match="Search operation 'upsert-index' failed for boundary 'shared'",
+    ) as exc_info:
         pkb.provision_foundry_iq_knowledge(dry_run=False)
+
+    message = str(exc_info.value)
+    assert "fake-token" not in message
+    assert "@search.action" not in message
+    assert credential.closed is True
 
     env_set_calls = [call for call in subprocess_calls if call[:3] == ["azd", "env", "set"]]
     assert env_set_calls == []
+
+
+def test_apply_mode_closes_credential_after_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_required_endpoint_env_vars(monkeypatch)
+    monkeypatch.setenv("FOUNDRYIQ_NAME_PREFIX", "enterprise-lifecycle")
+
+    class _CredentialWithClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def get_token(self, _scope: str) -> Mock:
+            return Mock(token="fake-token")
+
+        def close(self) -> None:
+            self.closed = True
+
+    credential = _CredentialWithClose()
+    monkeypatch.setattr(pkb, "DefaultAzureCredential", lambda: credential)
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    class _Client:
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            return False
+
+        def request(
+            self,
+            method: str,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+            timeout: int,
+        ) -> _Response:
+            return _Response()
+
+    monkeypatch.setattr(pkb.httpx, "Client", lambda: _Client())
+
+    def fake_run(args: list[str], **kwargs: Any) -> Any:
+        if args[:3] == ["azd", "env", "get-values"]:
+            return Mock(stdout="AZURE_ENV_NAME=enterprise-lifecycle\n")
+        if args[:3] == ["azd", "env", "set"]:
+            return Mock(stdout="")
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    monkeypatch.setattr(pkb.subprocess, "run", fake_run)
+
+    pkb.provision_foundry_iq_knowledge(dry_run=False)
+
+    assert credential.closed is True
 
 
 def test_knowledge_roots_exist_on_disk() -> None:

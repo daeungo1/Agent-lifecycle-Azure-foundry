@@ -3,24 +3,20 @@ using './main.bicep'
 param location = 'eastus2'
 param namePrefix = 'entlifecyc'
 
-param searchServices = [
-  {
-    boundary: 'shared'
+param searchServices = {
+  shared: {
     name: 'entlifecyc-shared-srch'
   }
-  {
-    boundary: 'development'
+  development: {
     name: 'entlifecyc-dev-srch'
   }
-  {
-    boundary: 'human-resources'
+  humanResources: {
     name: 'entlifecyc-hr-srch'
   }
-  {
-    boundary: 'marketing'
+  marketing: {
     name: 'entlifecyc-mkt-srch'
   }
-]
+}
 
 param tags = {
   repository: 'enterprise-agent-lifecycle'
