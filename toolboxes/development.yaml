@@ -1,0 +1,4 @@
+description: Development knowledge toolbox boundary.
+connections:
+  - name: kb-shared-remote-tool
+  - name: kb-development-remote-tool

@@ -79,3 +79,8 @@ output FOUNDRYIQ_SEARCH_ENDPOINT_SHARED string = searchShared.outputs.endpoint
 output FOUNDRYIQ_SEARCH_ENDPOINT_DEVELOPMENT string = searchDevelopment.outputs.endpoint
 output FOUNDRYIQ_SEARCH_ENDPOINT_HUMAN_RESOURCES string = searchHumanResources.outputs.endpoint
 output FOUNDRYIQ_SEARCH_ENDPOINT_MARKETING string = searchMarketing.outputs.endpoint
+
+output SEARCH_RESOURCE_ID_SHARED string = searchShared.outputs.resourceId
+output SEARCH_RESOURCE_ID_DEVELOPMENT string = searchDevelopment.outputs.resourceId
+output SEARCH_RESOURCE_ID_HUMAN_RESOURCES string = searchHumanResources.outputs.resourceId
+output SEARCH_RESOURCE_ID_MARKETING string = searchMarketing.outputs.resourceId

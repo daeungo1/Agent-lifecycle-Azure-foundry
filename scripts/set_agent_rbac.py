@@ -1,0 +1,405 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+from pathlib import Path
+from typing import Any
+
+ROLE_NAME = "Search Index Data Reader"
+
+DEPARTMENT_BY_AGENT = {
+    "development-agent": "development",
+    "human-resources-agent": "human-resources",
+    "marketing-agent": "marketing",
+}
+
+KNOWN_BOUNDARIES = ["shared", "development", "human-resources", "marketing"]
+BOUNDARY_TO_ENV_SUFFIX = {
+    "shared": "SHARED",
+    "development": "DEVELOPMENT",
+    "human-resources": "HUMAN_RESOURCES",
+    "marketing": "MARKETING",
+}
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def search_resource_id_env_var(boundary: str) -> str:
+    return f"SEARCH_RESOURCE_ID_{BOUNDARY_TO_ENV_SUFFIX[boundary]}"
+
+
+def _parse_azd_env_values(raw_env: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in raw_env.splitlines():
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def _load_active_azd_environment() -> dict[str, str]:
+    try:
+        result = subprocess.run(
+            ["azd", "env", "get-values", "--no-prompt"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return {}
+    return _parse_azd_env_values(result.stdout)
+
+
+def _run_json_command(args: list[str]) -> Any:
+    result = subprocess.run(args, check=True, capture_output=True, text=True)
+    if not result.stdout.strip():
+        return None
+    return json.loads(result.stdout)
+
+
+def _get_project_endpoint(azd_env: dict[str, str]) -> str:
+    endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT") or azd_env.get(
+        "AZURE_AI_PROJECT_ENDPOINT", ""
+    )
+    if not endpoint:
+        raise ValueError("Missing required environment value: AZURE_AI_PROJECT_ENDPOINT")
+    return endpoint
+
+
+def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
+    resource_ids: dict[str, str] = {}
+    missing: list[str] = []
+
+    for boundary in KNOWN_BOUNDARIES:
+        env_name = search_resource_id_env_var(boundary)
+        value = os.getenv(env_name) or azd_env.get(env_name, "")
+        if not value:
+            missing.append(env_name)
+        resource_ids[boundary] = value
+
+    if missing:
+        raise ValueError(
+            "Missing required Search resource ID variables: " + ", ".join(missing)
+        )
+
+    return resource_ids
+
+
+def _first_attr(obj: Any, names: list[str]) -> Any:
+    for name in names:
+        if hasattr(obj, name):
+            value = getattr(obj, name)
+            if value is not None:
+                return value
+    return None
+
+
+def _iter_agents(client: Any) -> list[Any]:
+    agents_client = getattr(client, "agents", None)
+    if agents_client is None:
+        raise RuntimeError("AIProjectClient.agents is unavailable in this SDK version.")
+
+    for method_name in ["list_agents", "list"]:
+        method = getattr(agents_client, method_name, None)
+        if callable(method):
+            result = method()
+            return list(result)
+
+    raise RuntimeError("Unable to enumerate agents: no list/list_agents method was found.")
+
+
+def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    try:
+        client = AIProjectClient(endpoint=project_endpoint, credential=credential)
+        all_agents = _iter_agents(client)
+    finally:
+        close = getattr(credential, "close", None)
+        if callable(close):
+            close()
+
+    principal_ids: dict[str, str] = {}
+    for agent in all_agents:
+        name = _first_attr(agent, ["name"])
+        if name not in DEPARTMENT_BY_AGENT:
+            continue
+
+        identity = _first_attr(agent, ["instance_identity", "instanceIdentity", "identity"])
+        principal_id = _first_attr(
+            identity,
+            ["principal_id", "principalId", "object_id", "objectId"],
+        )
+        if principal_id:
+            principal_ids[name] = str(principal_id)
+
+    missing_agents = [name for name in DEPARTMENT_BY_AGENT if name not in principal_ids]
+    if missing_agents:
+        raise RuntimeError(
+            "Missing instance identity principal IDs for deployed agents: "
+            + ", ".join(missing_agents)
+        )
+
+    return principal_ids
+
+
+def build_role_assignment_list_args(*, principal_id: str, scope: str, role_name: str) -> list[str]:
+    return [
+        "az",
+        "role",
+        "assignment",
+        "list",
+        "--assignee-object-id",
+        principal_id,
+        "--scope",
+        scope,
+        "--role",
+        role_name,
+        "--output",
+        "json",
+    ]
+
+
+def build_role_assignment_create_args(
+    *,
+    principal_id: str,
+    scope: str,
+    role_id_or_name: str,
+) -> list[str]:
+    return [
+        "az",
+        "role",
+        "assignment",
+        "create",
+        "--assignee-object-id",
+        principal_id,
+        "--scope",
+        scope,
+        "--role",
+        role_id_or_name,
+        "--output",
+        "json",
+    ]
+
+
+def resolve_role_definition_id(role_name: str) -> str:
+    role_defs = _run_json_command(
+        [
+            "az",
+            "role",
+            "definition",
+            "list",
+            "--name",
+            role_name,
+            "--output",
+            "json",
+        ]
+    )
+    if not role_defs:
+        raise RuntimeError(f"Role definition not found: {role_name}")
+
+    role_def = role_defs[0]
+    role_guid = role_def.get("name")
+    if role_guid:
+        return role_guid
+
+    role_id = role_def.get("id")
+    if role_id:
+        return role_id
+
+    raise RuntimeError(f"Role definition payload did not contain id/name: {role_name}")
+
+
+def build_desired_scope_matrix(
+    *,
+    principal_ids: dict[str, str],
+    resource_ids: dict[str, str],
+) -> dict[str, dict[str, Any]]:
+    matrix: dict[str, dict[str, Any]] = {}
+    for agent_name, department in DEPARTMENT_BY_AGENT.items():
+        matrix[agent_name] = {
+            "department": department,
+            "principalId": principal_ids[agent_name],
+            "allowedScopes": [resource_ids["shared"], resource_ids[department]],
+        }
+    return matrix
+
+
+def _normalize_scope(scope: str) -> str:
+    return scope.rstrip("/").lower()
+
+
+def detect_forbidden_assignments(
+    *,
+    desired_matrix: dict[str, dict[str, Any]],
+    existing_assignments: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    forbidden: list[dict[str, Any]] = []
+    for agent_name, desired in desired_matrix.items():
+        allowed = {_normalize_scope(scope) for scope in desired["allowedScopes"]}
+        for assignment in existing_assignments.get(agent_name, []):
+            if str(assignment.get("roleDefinitionName", "")) != ROLE_NAME:
+                continue
+
+            scope = str(assignment.get("scope", ""))
+            if _normalize_scope(scope) in allowed:
+                continue
+
+            forbidden.append(
+                {
+                    "agentName": agent_name,
+                    "department": desired["department"],
+                    "scope": scope,
+                    "roleDefinitionName": assignment.get("roleDefinitionName"),
+                }
+            )
+    return forbidden
+
+
+def _collect_existing_assignments(
+    *,
+    desired_matrix: dict[str, dict[str, Any]],
+    all_known_scopes: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    all_assignments: dict[str, list[dict[str, Any]]] = {}
+
+    for agent_name, desired in desired_matrix.items():
+        principal_id = desired["principalId"]
+        rows: list[dict[str, Any]] = []
+        for scope in all_known_scopes:
+            args = build_role_assignment_list_args(
+                principal_id=principal_id,
+                scope=scope,
+                role_name=ROLE_NAME,
+            )
+            assignments = _run_json_command(args) or []
+            rows.extend(assignments)
+        all_assignments[agent_name] = rows
+
+    return all_assignments
+
+
+def _calculate_missing_assignments(
+    *,
+    desired_matrix: dict[str, dict[str, Any]],
+    existing_assignments: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, str]]:
+    missing: list[dict[str, str]] = []
+    for agent_name, desired in desired_matrix.items():
+        existing_scopes = {
+            _normalize_scope(str(assignment.get("scope", "")))
+            for assignment in existing_assignments.get(agent_name, [])
+            if str(assignment.get("roleDefinitionName", "")) == ROLE_NAME
+        }
+
+        for scope in desired["allowedScopes"]:
+            if _normalize_scope(scope) not in existing_scopes:
+                missing.append(
+                    {
+                        "agentName": agent_name,
+                        "principalId": desired["principalId"],
+                        "scope": scope,
+                    }
+                )
+    return missing
+
+
+def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
+    azd_env = _load_active_azd_environment()
+    project_endpoint = _get_project_endpoint(azd_env)
+    resource_ids = _get_search_resource_ids(azd_env)
+    principal_ids = get_agent_principal_ids(project_endpoint)
+
+    desired_matrix = build_desired_scope_matrix(
+        principal_ids=principal_ids,
+        resource_ids=resource_ids,
+    )
+
+    all_known_scopes = [resource_ids[boundary] for boundary in KNOWN_BOUNDARIES]
+    existing_assignments = _collect_existing_assignments(
+        desired_matrix=desired_matrix,
+        all_known_scopes=all_known_scopes,
+    )
+
+    missing_assignments = _calculate_missing_assignments(
+        desired_matrix=desired_matrix,
+        existing_assignments=existing_assignments,
+    )
+
+    role_definition_id = resolve_role_definition_id(ROLE_NAME)
+    created_assignments: list[dict[str, Any]] = []
+
+    if not dry_run:
+        for pending in missing_assignments:
+            args = build_role_assignment_create_args(
+                principal_id=pending["principalId"],
+                scope=pending["scope"],
+                role_id_or_name=role_definition_id,
+            )
+            created = _run_json_command(args)
+            if created:
+                created_assignments.append(created)
+
+        existing_assignments = _collect_existing_assignments(
+            desired_matrix=desired_matrix,
+            all_known_scopes=all_known_scopes,
+        )
+
+    forbidden_assignments = detect_forbidden_assignments(
+        desired_matrix=desired_matrix,
+        existing_assignments=existing_assignments,
+    )
+
+    return {
+        "role": {
+            "name": ROLE_NAME,
+            "definitionId": role_definition_id,
+        },
+        "resourceIds": resource_ids,
+        "desiredMatrix": desired_matrix,
+        "missingAssignments": missing_assignments,
+        "createdAssignments": created_assignments,
+        "forbiddenAssignments": forbidden_assignments,
+        "dryRun": dry_run,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Grant least-privilege Search Index Data Reader RBAC "
+            "to hosted agent identities."
+        )
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Compute matrix/report without creating any role assignments.",
+    )
+    parser.add_argument(
+        "--report-path",
+        default=str(_repo_root() / "rbac-report.json"),
+        help="Path for JSON RBAC report output.",
+    )
+    args = parser.parse_args()
+
+    report = apply_search_rbac(dry_run=args.dry_run)
+
+    report_path = Path(args.report_path)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    if report["forbiddenAssignments"]:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

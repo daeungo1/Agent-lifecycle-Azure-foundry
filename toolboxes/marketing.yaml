@@ -1,0 +1,4 @@
+description: Marketing knowledge toolbox boundary.
+connections:
+  - name: kb-shared-remote-tool
+  - name: kb-marketing-remote-tool

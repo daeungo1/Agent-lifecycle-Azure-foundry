@@ -1,0 +1,4 @@
+description: Human resources knowledge toolbox boundary.
+connections:
+  - name: kb-shared-remote-tool
+  - name: kb-human-resources-remote-tool

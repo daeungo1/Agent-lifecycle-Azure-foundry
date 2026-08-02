@@ -1,0 +1,17 @@
+# Template only: not used by this quickstart deployment.
+# Use for future ACL-aware MCP integrations that require OAuth2 passthrough.
+
+description: Example toolbox for OAuth2 identity passthrough.
+connections:
+  - name: kb-shared-remote-tool
+  - name: kb-acl-oauth2-remote-tool
+
+tools:
+  - type: mcp
+    name: acl-knowledge
+    connection:
+      category: RemoteTool
+      target: https://acl-aware.example.com/mcp
+      authType: OAuth2
+      audience: api://YOUR-CUSTOM-APP-AUDIENCE
+      connectorName: YOUR_CONNECTOR_NAME
