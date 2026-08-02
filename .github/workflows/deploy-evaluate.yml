@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TENANT_ID: ${{ vars.TENANT_ID }}
+      SUBSCRIPTION_ID: ${{ vars.SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
@@ -53,9 +53,9 @@ jobs:
 
       - name: Configure OIDC authentication
         run: |
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd auth login --client-id "$AZURE_CLIENT_ID" --federated-credential-provider github --tenant-id "$AZURE_TENANT_ID"
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd auth login --client-id "$AZURE_CLIENT_ID" --federated-credential-provider github --tenant-id "$TENANT_ID"
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env select "$AZURE_ENV_NAME" --no-prompt || AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --no-prompt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID" --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SUBSCRIPTION_ID "$SUBSCRIPTION_ID" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_LOCATION "$AZURE_LOCATION" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
 
