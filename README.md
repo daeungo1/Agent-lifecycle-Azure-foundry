@@ -14,7 +14,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 
 ## Departmental multiagent and boundary model
 
-- Three hosted department agents are deployed: development, human-resources, and marketing.
+- The deployment workflow targets three hosted department agents: development, human-resources, and marketing.
 - Each department agent follows a coordinator + 2 specialist collaboration pattern.
 - Each department gets one dedicated toolbox, plus access to only allowed boundaries.
 - Foundry IQ boundaries are four separate search-backed knowledge bases:
