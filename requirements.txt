@@ -1,7 +1,4 @@
-agent-framework-foundry-hosting>=1.0.0a260630
-agent-dev-cli>=0.0.1b260427
-
-# Resolved pins from 2026-08-02 against https://packagefeedproxy.microsoft.io/pypi/simple/
+agent-framework-foundry-hosting==1.0.0b260730
 agent-framework-foundry==1.10.4
 azure-ai-projects==2.3.0
 azure-identity==1.26.0b2

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "enterprise-agent-lifecycle"
 version = "0.1.0"
 description = "Enterprise Microsoft Foundry Hosted Agent lifecycle foundation"
-requires-python = ">=3.12"
+requires-python = ">=3.13,<3.14"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -14,7 +14,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
