@@ -1,0 +1,105 @@
+name: enterprise-agent-lifecycle
+
+infra:
+  provider: microsoft.foundry
+  path: infra
+
+services:
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5.4-mini
+        model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: "2026-03-17"
+        sku:
+          name: GlobalStandard
+          capacity: 10
+
+  development-agent:
+    project: services/agents/development
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    kind: hosted
+    name: development-agent
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+      dependencyResolution: remote_build
+    environmentVariables:
+      - name: FOUNDRY_PROJECT_ENDPOINT
+        value: ${AZURE_AI_PROJECT_ENDPOINT}
+      - name: DEPARTMENT
+        value: development
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: TOOLBOX_ENDPOINT
+        value: ${TOOLBOX_ENDPOINT_DEVELOPMENT}
+      - name: ENABLE_INSTRUMENTATION
+        value: "true"
+      - name: ENABLE_SENSITIVE_DATA
+        value: "false"
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+
+  human-resources-agent:
+    project: services/agents/human-resources
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    kind: hosted
+    name: human-resources-agent
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+      dependencyResolution: remote_build
+    environmentVariables:
+      - name: FOUNDRY_PROJECT_ENDPOINT
+        value: ${AZURE_AI_PROJECT_ENDPOINT}
+      - name: DEPARTMENT
+        value: human-resources
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: TOOLBOX_ENDPOINT
+        value: ${TOOLBOX_ENDPOINT_HUMAN_RESOURCES}
+      - name: ENABLE_INSTRUMENTATION
+        value: "true"
+      - name: ENABLE_SENSITIVE_DATA
+        value: "false"
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+
+  marketing-agent:
+    project: services/agents/marketing
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    kind: hosted
+    name: marketing-agent
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+      dependencyResolution: remote_build
+    environmentVariables:
+      - name: FOUNDRY_PROJECT_ENDPOINT
+        value: ${AZURE_AI_PROJECT_ENDPOINT}
+      - name: DEPARTMENT
+        value: marketing
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: TOOLBOX_ENDPOINT
+        value: ${TOOLBOX_ENDPOINT_MARKETING}
+      - name: ENABLE_INSTRUMENTATION
+        value: "true"
+      - name: ENABLE_SENSITIVE_DATA
+        value: "false"
+    protocols:
+      - protocol: responses
+        version: 2.0.0
