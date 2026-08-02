@@ -1,3 +1,4 @@
-{"department":"development","query":"State the company-wide documentation citation requirement for technical guidance.","expected_behavior":"allow","expected_tools":["development-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
-{"department":"human-resources","query":"Summarize handbook rules for inclusive communication in policy responses.","expected_behavior":"allow","expected_tools":["human-resources-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
-{"department":"marketing","query":"Explain shared handbook standards for external message approval records.","expected_behavior":"allow","expected_tools":["marketing-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"development","query":"State the company-wide documentation citation requirement for technical guidance.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"human-resources","query":"Summarize handbook rules for inclusive communication in policy responses.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"marketing","query":"Explain shared handbook standards for external message approval records.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+

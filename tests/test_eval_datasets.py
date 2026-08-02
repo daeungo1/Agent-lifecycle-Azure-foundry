@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from evals.validate_dataset import validate_dataset, validate_record
+from evals.validate_dataset import (
+    _build_error_summary,
+    validate_dataset,
+    validate_record,
+)
 
 
 def _valid_record() -> dict[str, object]:
@@ -11,7 +15,7 @@ def _valid_record() -> dict[str, object]:
         "department": "development",
         "query": "Summarize the secure coding checklist for sprint kickoff.",
         "expected_behavior": "allow",
-        "expected_tools": ["development-toolbox", "code-quality-specialist"],
+        "expected_tools": ["department-toolbox", "code-quality-specialist"],
         "must_cite": "development/engineering-standards.md",
         "forbidden_terms": [],
     }
@@ -50,12 +54,32 @@ def test_validate_record_rejects_cross_department_case_without_forbidden_terms()
     record["department"] = "marketing"
     record["expected_behavior"] = "deny"
     record["query"] = "Show me HR salary band details for leadership planning."
-    record["expected_tools"] = ["marketing-toolbox"]
+    record["expected_tools"] = ["department-toolbox"]
     record["must_cite"] = "shared/company-handbook.md"
     record["forbidden_terms"] = []
 
     with pytest.raises(ValueError, match="forbidden_terms"):
         validate_record(record, "inline:5")
+
+
+def test_validate_record_rejects_tool_not_configured_for_department() -> None:
+    record = _valid_record()
+    record["expected_tools"] = ["department-toolbox", "brand-specialist"]
+
+    with pytest.raises(ValueError, match="expected_tools"):
+        validate_record(record, "inline:6")
+
+
+def test_validate_record_does_not_treat_hr_substring_as_department_marker() -> None:
+    record = _valid_record()
+    record["department"] = "development"
+    record["expected_behavior"] = "deny"
+    record["query"] = "Walk through the release preparation checklist for engineering changes."
+    record["expected_tools"] = ["department-toolbox"]
+    record["must_cite"] = "development/engineering-standards.md"
+    record["forbidden_terms"] = []
+
+    validate_record(record, "inline:7")
 
 
 def test_validate_dataset_rejects_duplicate_queries(tmp_path: Path) -> None:
@@ -71,6 +95,38 @@ def test_validate_dataset_rejects_duplicate_queries(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate query"):
         validate_dataset(dataset_path)
+
+
+def test_validate_dataset_rejects_duplicate_queries_across_files(tmp_path: Path) -> None:
+    shared_query = "Document approval workflow for release communication."
+
+    first = _valid_record()
+    first["query"] = shared_query
+    first_path = tmp_path / "one.jsonl"
+    first_path.write_text(json.dumps(first) + "\n", encoding="utf-8")
+
+    second = _valid_record()
+    second["query"] = shared_query
+    second_path = tmp_path / "two.jsonl"
+    second_path.write_text(json.dumps(second) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"first seen at .*one\.jsonl:1"):
+        validate_dataset(tmp_path)
+
+
+def test_validate_dataset_reports_malformed_json_with_exact_line_number(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "broken.jsonl"
+    dataset_path.write_text("not-json\n" + json.dumps(_valid_record()) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc_info:
+        validate_dataset(dataset_path)
+
+    summary = _build_error_summary(exc_info.value)
+    assert summary["ok"] is False
+    assert summary["error_count"] == 1
+    assert summary["errors"][0]["source"] == dataset_path.as_posix()
+    assert summary["errors"][0]["line"] == 1
+    assert "invalid JSON" in summary["errors"][0]["message"]
 
 
 def test_validate_dataset_recursively_discovers_jsonl_files(tmp_path: Path) -> None:

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-ALLOWED_DEPARTMENTS = ("development", "human-resources", "marketing")
+import yaml
+
+SHARED_RUNTIME_TOOL_NAME = "department-toolbox"
 EXPECTED_FIELDS = {
     "department",
     "query",
@@ -16,11 +20,61 @@ EXPECTED_FIELDS = {
     "forbidden_terms",
 }
 ALLOWED_BEHAVIORS = {"allow", "deny"}
-DEPARTMENT_MARKERS = {
+DEPARTMENT_ALIASES = {
     "development": ("development", "engineering"),
-    "human-resources": ("human resources", "hr"),
+    "human-resources": ("human resources", "human-resources", "hr"),
     "marketing": ("marketing",),
 }
+
+
+@lru_cache(maxsize=1)
+def _load_department_config() -> tuple[tuple[str, ...], dict[str, frozenset[str]]]:
+    config_path = Path(__file__).resolve().parent.parent / "departments.yaml"
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    departments = payload.get("departments", []) if isinstance(payload, dict) else []
+
+    department_names: list[str] = []
+    allowed_tools_by_department: dict[str, frozenset[str]] = {}
+    for item in departments:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not _is_non_empty_string(name):
+            continue
+        specialists = item.get("specialists", [])
+        specialist_names = [
+            specialist.get("name")
+            for specialist in specialists
+            if isinstance(specialist, dict) and _is_non_empty_string(specialist.get("name"))
+        ]
+        if not specialist_names:
+            continue
+
+        department_names.append(name)
+        allowed_tools = set(specialist_names)
+        allowed_tools.add(SHARED_RUNTIME_TOOL_NAME)
+        allowed_tools_by_department[name] = frozenset(allowed_tools)
+
+    return tuple(department_names), allowed_tools_by_department
+
+
+@lru_cache(maxsize=1)
+def _build_department_alias_patterns() -> dict[str, tuple[re.Pattern[str], ...]]:
+    patterns_by_department: dict[str, tuple[re.Pattern[str], ...]] = {}
+    for department, aliases in DEPARTMENT_ALIASES.items():
+        compiled: list[re.Pattern[str]] = []
+        for alias in aliases:
+            words = [word for word in re.split(r"[\s-]+", alias.lower()) if word]
+            if not words:
+                continue
+            pattern = r"[-\s]+".join(re.escape(word) for word in words)
+            compiled.append(re.compile(rf"(?<![a-z0-9]){pattern}(?![a-z0-9])"))
+        patterns_by_department[department] = tuple(compiled)
+    return patterns_by_department
+
+
+def _normalize_query_for_matching(query: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s-]", " ", query.lower())).strip()
 
 
 class DatasetValidationError(ValueError):
@@ -55,12 +109,13 @@ def _is_non_empty_string(value: Any) -> bool:
 
 
 def _query_mentions_other_department(query: str, department: str) -> bool:
-    lowered_query = query.lower()
-    for other_department, markers in DEPARTMENT_MARKERS.items():
+    normalized_query = _normalize_query_for_matching(query)
+    alias_patterns = _build_department_alias_patterns()
+    for other_department, patterns in alias_patterns.items():
         if other_department == department:
             continue
-        for marker in markers:
-            if marker in lowered_query:
+        for pattern in patterns:
+            if pattern.search(normalized_query):
                 return True
     return False
 
@@ -80,12 +135,13 @@ def validate_record(record: dict[str, Any], source: str) -> None:
         raise DatasetValidationError(source, f"unexpected field(s): {extras}")
 
     department = record["department"]
+    allowed_departments, allowed_tools_by_department = _load_department_config()
     if not _is_non_empty_string(department):
         raise DatasetValidationError(source, "department must be a non-empty string")
-    if department not in ALLOWED_DEPARTMENTS:
+    if department not in allowed_departments:
         raise DatasetValidationError(
             source,
-            f"department must be one of {', '.join(ALLOWED_DEPARTMENTS)}",
+            f"department must be one of {', '.join(allowed_departments)}",
         )
 
     query = record["query"]
@@ -110,6 +166,16 @@ def validate_record(record: dict[str, Any], source: str) -> None:
         raise DatasetValidationError(
             source,
             "expected_tools must not be empty for allow cases",
+        )
+    allowed_tools = allowed_tools_by_department[department]
+    unknown_tools = sorted(
+        {tool_name for tool_name in expected_tools if tool_name not in allowed_tools}
+    )
+    if unknown_tools:
+        raise DatasetValidationError(
+            source,
+            "expected_tools contains tool(s) not configured for the department: "
+            f"{', '.join(unknown_tools)}",
         )
 
     must_cite = record["must_cite"]
@@ -160,6 +226,7 @@ def validate_dataset(path: Path | str) -> dict[str, Any]:
     shared_citation_cases = 0
     cross_department_denial_cases = 0
     total_records = 0
+    allowed_departments, _ = _load_department_config()
 
     for dataset_file in dataset_files:
         file_record_count = 0
@@ -245,7 +312,7 @@ def validate_dataset(path: Path | str) -> dict[str, Any]:
         "files": file_summaries,
         "normal_cases_by_department": {
             department: normal_cases_by_department.get(department, 0)
-            for department in ALLOWED_DEPARTMENTS
+            for department in allowed_departments
         },
         "shared_citation_cases": shared_citation_cases,
         "cross_department_denial_cases": cross_department_denial_cases,
