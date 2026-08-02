@@ -13,10 +13,9 @@ from scripts.toolbox_ops import (
     build_toolbox_connection_remove_args,
     build_toolbox_create_args,
     build_toolbox_publish_args,
-    build_toolbox_versions_list_args,
     ensure_exact_connection_set,
     expected_toolbox_connections,
-    extract_latest_version,
+    extract_mutation_version,
     extract_toolbox_connection_names,
     extract_toolbox_endpoint,
     plan_toolbox_reconciliation,
@@ -115,7 +114,7 @@ def test_extract_toolbox_endpoint_explicit_or_constructed() -> None:
     explicit = {
         "version": {"details": {"mcpEndpoint": "https://example.invalid/toolboxes/dev/mcp?api-version=v1"}}
     }
-    assert extract_toolbox_endpoint(explicit) == "https://example.invalid/toolboxes/dev/mcp?api-version=v1"
+    assert extract_toolbox_endpoint(explicit) == ""
 
     fallback = extract_toolbox_endpoint(
         {"name": "development-knowledge-toolbox"},
@@ -127,17 +126,55 @@ def test_extract_toolbox_endpoint_explicit_or_constructed() -> None:
         == "https://example.services.ai.azure.com/api/projects/p1/toolboxes/development-knowledge-toolbox/mcp?api-version=v1"
     )
 
+    # Nested endpoint-like values must not influence deterministic endpoint generation.
+    poisoned = extract_toolbox_endpoint(
+        {
+            "version": {
+                "details": {
+                    "endpoint": "https://attacker.invalid/toolboxes/poison/mcp?api-version=v1",
+                    "url": "https://attacker.invalid/other",
+                }
+            }
+        },
+        project_endpoint="https://example.services.ai.azure.com/api/projects/p1/",
+        toolbox_name="development-knowledge-toolbox",
+    )
+    assert (
+        poisoned
+        == "https://example.services.ai.azure.com/api/projects/p1/toolboxes/development-knowledge-toolbox/mcp?api-version=v1"
+    )
 
-def test_extract_latest_version_from_versions_payload() -> None:
+
+def test_extract_mutation_version_uses_only_mutation_payload_version_keys() -> None:
     payload = {
         "versions": [
             {"version": "v1"},
-            {"id": "v2"},
-            {"name": "v3"},
-        ]
+            {"version": "v2"},
+        ],
+        "mutation": {
+            "result": {
+                "toolboxVersion": "v3",
+                "id": "not-a-version-source",
+                "name": "also-not-a-version-source",
+            }
+        },
     }
 
-    assert extract_latest_version(payload) == "v3"
+    assert extract_mutation_version(payload) == "v3"
+
+
+def test_extract_mutation_version_fails_closed_when_missing_or_ambiguous() -> None:
+    missing = {"mutation": {"result": {"id": "foo", "name": "bar"}}}
+    ambiguous = {"first": {"toolboxVersion": "v3"}, "second": {"toolbox_version": "v4"}}
+
+    for payload in (missing, ambiguous):
+        try:
+            extract_mutation_version(payload)
+        except ValueError as exc:
+            message = str(exc).lower()
+            assert "version" in message
+        else:
+            raise AssertionError("expected mutation version extraction to fail closed")
 
 
 def test_reconciliation_plan_handles_missing_and_extra_connections() -> None:
@@ -162,13 +199,13 @@ def test_runtime_reconciliation_operations_remove_cross_department_extra_and_ass
             "action": "add",
             "toolbox": "development-knowledge-toolbox",
             "connection": "kb-development-remote-tool",
-            "publish": "latest",
+            "publish": "mutation",
         },
         {
             "action": "remove",
             "toolbox": "development-knowledge-toolbox",
             "connection": "kb-marketing-remote-tool",
-            "publish": "latest",
+            "publish": "mutation",
         },
         {
             "action": "assert-exact",
@@ -186,11 +223,12 @@ def test_toolbox_mutation_builders_include_publishable_commands() -> None:
         toolbox_name="development-knowledge-toolbox",
         connection_name="kb-marketing-remote-tool",
     )
-    versions_args = build_toolbox_versions_list_args("development-knowledge-toolbox")
-
     assert add_args[:5] == ["azd", "ai", "toolbox", "connection", "add"]
+    assert "--output" in add_args
+    assert add_args[add_args.index("--output") + 1] == "json"
     assert remove_args[:5] == ["azd", "ai", "toolbox", "connection", "remove"]
-    assert versions_args[:5] == ["azd", "ai", "toolbox", "versions", "list"]
+    assert "--output" in remove_args
+    assert remove_args[remove_args.index("--output") + 1] == "json"
 
 
 def test_exact_connection_assertion_fails_closed_on_drift() -> None:
@@ -218,6 +256,12 @@ def test_static_script_asserts_publish_with_version_and_final_exact_check() -> N
 
     assert "ai connection show" in script
     assert '"ai", "connection", "list"' in script
-    assert '"ai", "toolbox", "versions", "list"' in script
+    assert '"ai", "toolbox", "connection", "add"' in script
+    assert '"ai", "toolbox", "connection", "remove"' in script
+    assert '"--output", "json"' in script
     assert '"ai", "toolbox", "publish"' in script
+    assert "Get-MutationToolboxVersion" in script
+    assert "FOUNDRY_PROJECT_ENDPOINT" in script
+    assert "toolboxes/$ToolboxName/mcp?api-version=v1" in script
+    assert '"ai", "toolbox", "versions", "list"' not in script
     assert "ensure_exact_connection_set" in script

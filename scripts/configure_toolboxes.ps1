@@ -81,6 +81,54 @@ function Normalize-ConnectionName {
     return $trimmed
 }
 
+function Normalize-AlphaNumericLower {
+    param([string]$Value)
+
+    if (-not $Value) {
+        return ""
+    }
+
+    return (($Value -replace "[^a-zA-Z0-9]", "").ToLowerInvariant())
+}
+
+function Normalize-EndpointForComparison {
+    param([string]$Value)
+
+    if (-not $Value) {
+        return ""
+    }
+
+    $raw = $Value.Trim()
+    if (-not $raw) {
+        return ""
+    }
+
+    try {
+        $uri = [System.Uri]$raw
+        if (-not $uri.IsAbsoluteUri) {
+            return $raw.TrimEnd("/")
+        }
+
+        $host = $uri.Host.ToLowerInvariant()
+        $scheme = $uri.Scheme.ToLowerInvariant()
+        $port = ""
+        if (-not $uri.IsDefaultPort) {
+            $port = ":$($uri.Port)"
+        }
+
+        $path = $uri.AbsolutePath
+        if ($path.Length -gt 1) {
+            $path = $path.TrimEnd("/")
+        }
+
+        $query = $uri.Query
+        return "$scheme://$host$port$path$query"
+    }
+    catch {
+        return $raw.TrimEnd("/")
+    }
+}
+
 function Add-ConnectionNamesFromNode {
     param(
         [object]$Node,
@@ -137,10 +185,21 @@ function Get-ToolboxConnectionNames {
     return @($set)
 }
 
-function Add-EndpointCandidatesFromNode {
+function Test-PublishableVersion {
+    param([string]$Value)
+
+    if (-not $Value) {
+        return $false
+    }
+
+    return [bool]($Value.Trim() -match '^(?:v?\d+(?:\.\d+){0,3})(?:[-+][0-9A-Za-z.-]+)?$')
+}
+
+function Add-MutationVersionCandidatesFromNode {
     param(
         [object]$Node,
-        [System.Collections.Generic.List[string]]$Candidates
+        [System.Collections.Generic.List[string]]$Candidates,
+        [string]$ParentKey = ""
     )
 
     if ($null -eq $Node) {
@@ -150,98 +209,56 @@ function Add-EndpointCandidatesFromNode {
     if ($Node -is [System.Collections.IDictionary]) {
         foreach ($pair in $Node.GetEnumerator()) {
             $key = [string]$pair.Key
-            $value = $pair.Value
-            if ($value -is [string] -and $value) {
-                $k = $key.ToLowerInvariant()
-                if ($k -eq "endpoint" -or $k -eq "mcpendpoint" -or $k -eq "mcp_endpoint" -or $k -eq "url") {
-                    $Candidates.Add($value)
+            $keyNormalized = $key.ToLowerInvariant()
+            if ($keyNormalized -eq "version" -or $keyNormalized -eq "toolboxversion" -or $keyNormalized -eq "toolbox_version") {
+                $value = [string]$pair.Value
+                if (-not ($keyNormalized -eq "version" -and $ParentKey.ToLowerInvariant() -eq "versions") -and (Test-PublishableVersion -Value $value)) {
+                    $Candidates.Add($value.Trim())
                 }
             }
-            Add-EndpointCandidatesFromNode -Node $value -Candidates $Candidates
+
+            Add-MutationVersionCandidatesFromNode -Node $pair.Value -Candidates $Candidates -ParentKey $key
         }
         return
     }
 
     if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
         foreach ($item in $Node) {
-            Add-EndpointCandidatesFromNode -Node $item -Candidates $Candidates
+            Add-MutationVersionCandidatesFromNode -Node $item -Candidates $Candidates -ParentKey $ParentKey
         }
     }
 }
 
-function Resolve-ToolboxEndpoint {
+function Get-MutationToolboxVersion {
+    param([object]$MutationResult)
+
+    if ($null -eq $MutationResult) {
+        throw "Mutation command did not return JSON output for toolbox version extraction."
+    }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    Add-MutationVersionCandidatesFromNode -Node $MutationResult -Candidates $candidates
+
+    $unique = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($candidate in $candidates) {
+        [void]$unique.Add($candidate)
+    }
+
+    $uniqueValues = @($unique)
+    if ($uniqueValues.Count -ne 1) {
+        throw "Mutation payload must contain exactly one publishable toolbox version (version/toolboxVersion/toolbox_version)."
+    }
+
+    return [string]$uniqueValues[0]
+}
+
+function Publish-MutationToolboxVersion {
     param(
-        [object]$ToolboxShow,
         [string]$ToolboxName,
-        [string]$ProjectEndpoint
+        [object]$MutationResult
     )
 
-    $candidates = [System.Collections.Generic.List[string]]::new()
-    Add-EndpointCandidatesFromNode -Node $ToolboxShow -Candidates $candidates
-    if ($candidates.Count -gt 0) {
-        return [string]$candidates[0]
-    }
-
-    if ($ProjectEndpoint -and $ToolboxName) {
-        $base = $ProjectEndpoint.TrimEnd("/")
-        return "$base/toolboxes/$ToolboxName/mcp?api-version=v1"
-    }
-
-    return ""
-}
-
-function Add-VersionCandidatesFromNode {
-    param(
-        [object]$Node,
-        [System.Collections.Generic.List[string]]$Candidates
-    )
-
-    if ($null -eq $Node) {
-        return
-    }
-
-    if ($Node -is [System.Collections.IDictionary]) {
-        foreach ($key in @("version", "id", "name")) {
-            if ($Node.Contains($key)) {
-                $value = [string]$Node[$key]
-                if ($value) {
-                    $Candidates.Add($value)
-                    break
-                }
-            }
-        }
-
-        foreach ($value in $Node.Values) {
-            Add-VersionCandidatesFromNode -Node $value -Candidates $Candidates
-        }
-        return
-    }
-
-    if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
-        foreach ($item in $Node) {
-            Add-VersionCandidatesFromNode -Node $item -Candidates $Candidates
-        }
-    }
-}
-
-function Get-LatestToolboxVersion {
-    param([string]$ToolboxName)
-
-    $versions = Invoke-AzdJson -Args @("ai", "toolbox", "versions", "list", $ToolboxName, "--output", "json", "--no-prompt")
-    $candidates = [System.Collections.Generic.List[string]]::new()
-    Add-VersionCandidatesFromNode -Node $versions -Candidates $candidates
-
-    if ($candidates.Count -eq 0) {
-        throw "Unable to identify latest toolbox version for '$ToolboxName'."
-    }
-
-    return [string]$candidates[$candidates.Count - 1]
-}
-
-function Publish-LatestToolboxVersion {
-    param([string]$ToolboxName)
-
-    $version = Get-LatestToolboxVersion -ToolboxName $ToolboxName
+    $version = Get-MutationToolboxVersion -MutationResult $MutationResult
     Write-Status -Level "INFO" -Message "Publishing toolbox version: $ToolboxName $version"
     if ($WhatIfOnly) {
         return
@@ -350,11 +367,18 @@ function Ensure-RemoteToolConnection {
     $authType = (Get-ConnectionField -Connection $details -Names @("authType", "auth_type")).ToLowerInvariant()
     $audience = Get-ConnectionField -Connection $details -Names @("audience")
 
+    $kindNormalized = Normalize-AlphaNumericLower -Value $kind
+    $authTypeNormalized = Normalize-AlphaNumericLower -Value $authType
+    $targetActualNormalized = Normalize-EndpointForComparison -Value $targetActual
+    $targetExpectedNormalized = Normalize-EndpointForComparison -Value $Target
+    $audienceNormalized = Normalize-EndpointForComparison -Value $audience
+    $audienceExpectedNormalized = Normalize-EndpointForComparison -Value "https://search.azure.com"
+
     $drift = @()
-    if ($kind -ne "remote-tool") { $drift += "kind='$kind' expected='remote-tool'" }
-    if ($targetActual -ne $Target) { $drift += "target='$targetActual' expected='$Target'" }
-    if ($authType -ne "agentic-identity") { $drift += "authType='$authType' expected='agentic-identity'" }
-    if ($audience -ne "https://search.azure.com") { $drift += "audience='$audience' expected='https://search.azure.com'" }
+    if ($kindNormalized -ne "remotetool") { $drift += "kind='$kind' expected='remote-tool'" }
+    if ($targetActualNormalized -ne $targetExpectedNormalized) { $drift += "target='$targetActual' expected='$Target'" }
+    if ($authTypeNormalized -ne "agenticidentity") { $drift += "authType='$authType' expected='agentic-identity'" }
+    if ($audienceNormalized -ne $audienceExpectedNormalized) { $drift += "audience='$audience' expected='https://search.azure.com'" }
 
     if ($drift.Count -gt 0) {
         throw "Connection '$ConnectionName' drift detected. $($drift -join '; '). Fix the connection manually or remove/recreate it, then rerun."
@@ -394,8 +418,8 @@ function Upsert-Toolbox {
         foreach ($name in $missing) {
             Write-Status -Level "INFO" -Message "Adding missing connection '$name' to toolbox '$ToolboxName'"
             if (-not $WhatIfOnly) {
-                Invoke-AzdRaw -Args @("ai", "toolbox", "connection", "add", $ToolboxName, $name, "--no-prompt") | Out-Null
-                Publish-LatestToolboxVersion -ToolboxName $ToolboxName
+                $mutation = Invoke-AzdJson -Args @("ai", "toolbox", "connection", "add", $ToolboxName, $name, "--output", "json", "--no-prompt")
+                Publish-MutationToolboxVersion -ToolboxName $ToolboxName -MutationResult $mutation
             }
             $showResult = Invoke-AzdJson -Args @("ai", "toolbox", "show", $ToolboxName, "--output", "json", "--no-prompt")
             $current = Get-ToolboxConnectionNames -ToolboxShow $showResult
@@ -409,8 +433,8 @@ function Upsert-Toolbox {
 
             Write-Status -Level "INFO" -Message "Removing extra connection '$name' from toolbox '$ToolboxName'"
             if (-not $WhatIfOnly) {
-                Invoke-AzdRaw -Args @("ai", "toolbox", "connection", "remove", $ToolboxName, $name, "--no-prompt") | Out-Null
-                Publish-LatestToolboxVersion -ToolboxName $ToolboxName
+                $mutation = Invoke-AzdJson -Args @("ai", "toolbox", "connection", "remove", $ToolboxName, $name, "--output", "json", "--no-prompt")
+                Publish-MutationToolboxVersion -ToolboxName $ToolboxName -MutationResult $mutation
             }
             $showResult = Invoke-AzdJson -Args @("ai", "toolbox", "show", $ToolboxName, "--output", "json", "--no-prompt")
             $current = Get-ToolboxConnectionNames -ToolboxShow $showResult
@@ -434,10 +458,10 @@ function Upsert-Toolbox {
         $actual = Get-ToolboxConnectionNames -ToolboxShow $published
         ensure_exact_connection_set -ToolboxName $ToolboxName -Expected $expected -Actual $actual
 
-        $endpoint = Resolve-ToolboxEndpoint -ToolboxShow $published -ToolboxName $ToolboxName -ProjectEndpoint $ProjectEndpoint
-        if (-not $endpoint) {
-            throw "Unable to resolve toolbox endpoint for '$ToolboxName'."
+        if (-not $ProjectEndpoint) {
+            throw "Missing required FOUNDRY_PROJECT_ENDPOINT for deterministic toolbox endpoint construction."
         }
+        $endpoint = "$($ProjectEndpoint.TrimEnd('/'))/toolboxes/$ToolboxName/mcp?api-version=v1"
 
         Invoke-AzdRaw -Args @("env", "set", $EndpointEnvName, $endpoint, "--no-prompt") | Out-Null
     }

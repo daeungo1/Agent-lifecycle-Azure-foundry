@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -148,6 +149,8 @@ def build_toolbox_connection_add_args(
         toolbox_name,
         *( [connection_name] if connection_name else [] ),
         *( ["--from-file", from_file] if from_file else [] ),
+        "--output",
+        "json",
         "--no-prompt",
     ]
 
@@ -161,18 +164,6 @@ def build_toolbox_connection_remove_args(*, toolbox_name: str, connection_name: 
         "remove",
         toolbox_name,
         connection_name,
-        "--no-prompt",
-    ]
-
-
-def build_toolbox_versions_list_args(toolbox_name: str) -> list[str]:
-    return [
-        "azd",
-        "ai",
-        "toolbox",
-        "versions",
-        "list",
-        toolbox_name,
         "--output",
         "json",
         "--no-prompt",
@@ -242,12 +233,6 @@ def extract_toolbox_endpoint(
     project_endpoint: str | None = None,
     toolbox_name: str | None = None,
 ) -> str:
-    endpoint_keys = {"endpoint", "mcpendpoint", "mcp_endpoint", "url"}
-    for node in _walk_nodes(toolbox_show):
-        for key, value in node.items():
-            if key.lower() in endpoint_keys and isinstance(value, str) and value:
-                return value
-
     if project_endpoint and toolbox_name:
         base = project_endpoint.rstrip("/")
         return f"{base}/toolboxes/{toolbox_name}/mcp?api-version=v1"
@@ -255,18 +240,44 @@ def extract_toolbox_endpoint(
     return ""
 
 
-def extract_latest_version(versions_payload: dict[str, Any] | list[Any]) -> str:
-    candidates: list[str] = []
-    for node in _walk_nodes(versions_payload):
-        for key in ("version", "id", "name"):
-            value = node.get(key)
-            if isinstance(value, str) and value:
-                candidates.append(value)
-                break
+_VERSION_PATTERN = re.compile(r"^(?:v?\d+(?:\.\d+){0,3})(?:[-+][0-9A-Za-z.-]+)?$")
 
-    if not candidates:
-        raise ValueError("No toolbox versions found to publish")
-    return candidates[-1]
+
+def _is_publishable_version(value: str) -> bool:
+    return bool(_VERSION_PATTERN.fullmatch(value.strip()))
+
+
+def extract_mutation_version(mutation_payload: dict[str, Any] | list[Any]) -> str:
+    candidates: list[str] = []
+    version_keys = {"version", "toolboxversion", "toolbox_version"}
+
+    def _collect(value: Any, parent_key: str = "") -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                lowered = key.lower()
+                if lowered in version_keys and isinstance(child, str):
+                    # Ignore generic entries commonly nested under versions lists.
+                    if not (lowered == "version" and parent_key.lower() == "versions"):
+                        cleaned = child.strip()
+                        if _is_publishable_version(cleaned):
+                            candidates.append(cleaned)
+                _collect(child, key)
+            return
+
+        if isinstance(value, list):
+            for child in value:
+                _collect(child, parent_key)
+
+    _collect(mutation_payload)
+
+    unique = sorted(set(candidates))
+    if len(unique) != 1:
+        raise ValueError(
+            "Mutation payload must contain exactly one publishable toolbox version "
+            "under version/toolboxVersion/toolbox_version"
+        )
+
+    return unique[0]
 
 
 def plan_toolbox_reconciliation(*, current: set[str], expected: set[str]) -> dict[str, list[str]]:
@@ -290,7 +301,7 @@ def build_reconciliation_operations(
                 "action": "add",
                 "toolbox": toolbox_name,
                 "connection": connection_name,
-                "publish": "latest",
+                "publish": "mutation",
             }
         )
 
@@ -300,7 +311,7 @@ def build_reconciliation_operations(
                 "action": "remove",
                 "toolbox": toolbox_name,
                 "connection": connection_name,
-                "publish": "latest",
+                "publish": "mutation",
             }
         )
 
