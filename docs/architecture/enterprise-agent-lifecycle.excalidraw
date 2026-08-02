@@ -1,0 +1,65 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id": "r-build", "type": "rectangle", "x": 60, "y": 420, "width": 240, "height": 120, "strokeColor": "#1d4ed8", "backgroundColor": "#dbeafe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-dev-agent", "type": "rectangle", "x": 360, "y": 120, "width": 260, "height": 140, "strokeColor": "#0f766e", "backgroundColor": "#ccfbf1", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-hr-agent", "type": "rectangle", "x": 360, "y": 360, "width": 260, "height": 140, "strokeColor": "#0f766e", "backgroundColor": "#ccfbf1", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-mkt-agent", "type": "rectangle", "x": 360, "y": 600, "width": 260, "height": 140, "strokeColor": "#0f766e", "backgroundColor": "#ccfbf1", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-dev-toolbox", "type": "rectangle", "x": 680, "y": 140, "width": 220, "height": 90, "strokeColor": "#7c2d12", "backgroundColor": "#ffedd5", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-hr-toolbox", "type": "rectangle", "x": 680, "y": 385, "width": 220, "height": 90, "strokeColor": "#7c2d12", "backgroundColor": "#ffedd5", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-mkt-toolbox", "type": "rectangle", "x": 680, "y": 630, "width": 220, "height": 90, "strokeColor": "#7c2d12", "backgroundColor": "#ffedd5", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-kb-shared", "type": "rectangle", "x": 980, "y": 40, "width": 240, "height": 90, "strokeColor": "#6d28d9", "backgroundColor": "#ede9fe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-kb-dev", "type": "rectangle", "x": 980, "y": 200, "width": 240, "height": 90, "strokeColor": "#6d28d9", "backgroundColor": "#ede9fe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-kb-hr", "type": "rectangle", "x": 980, "y": 400, "width": 240, "height": 90, "strokeColor": "#6d28d9", "backgroundColor": "#ede9fe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-kb-mkt", "type": "rectangle", "x": 980, "y": 600, "width": 240, "height": 90, "strokeColor": "#6d28d9", "backgroundColor": "#ede9fe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-evaluate", "type": "rectangle", "x": 1290, "y": 410, "width": 230, "height": 130, "strokeColor": "#b45309", "backgroundColor": "#fef3c7", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-operate", "type": "rectangle", "x": 1580, "y": 380, "width": 250, "height": 190, "strokeColor": "#1e3a8a", "backgroundColor": "#dbeafe", "strokeWidth": 2, "roughness": 0},
+    {"id": "r-identity", "type": "rectangle", "x": 700, "y": 810, "width": 520, "height": 100, "strokeColor": "#334155", "backgroundColor": "#e2e8f0", "strokeWidth": 2, "roughness": 0},
+
+    {"id": "t-build", "type": "text", "x": 82, "y": 456, "width": 196, "height": 48, "text": "GitHub OIDC Build", "fontSize": 26, "fontFamily": 5, "strokeColor": "#1e3a8a", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-dev-agent", "type": "text", "x": 374, "y": 150, "width": 234, "height": 90, "text": "Development Hosted Agent\\nCoordinator + 2 Specialists", "fontSize": 20, "fontFamily": 5, "strokeColor": "#115e59", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-hr-agent", "type": "text", "x": 374, "y": 390, "width": 234, "height": 90, "text": "Human Resources Hosted Agent\\nCoordinator + 2 Specialists", "fontSize": 20, "fontFamily": 5, "strokeColor": "#115e59", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-mkt-agent", "type": "text", "x": 374, "y": 630, "width": 234, "height": 90, "text": "Marketing Hosted Agent\\nCoordinator + 2 Specialists", "fontSize": 20, "fontFamily": 5, "strokeColor": "#115e59", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-dev-toolbox", "type": "text", "x": 714, "y": 168, "width": 152, "height": 36, "text": "Development Toolbox", "fontSize": 18, "fontFamily": 5, "strokeColor": "#7c2d12", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-hr-toolbox", "type": "text", "x": 704, "y": 413, "width": 172, "height": 36, "text": "Human Resources Toolbox", "fontSize": 18, "fontFamily": 5, "strokeColor": "#7c2d12", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-mkt-toolbox", "type": "text", "x": 726, "y": 658, "width": 136, "height": 36, "text": "Marketing Toolbox", "fontSize": 18, "fontFamily": 5, "strokeColor": "#7c2d12", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-kb-shared", "type": "text", "x": 1012, "y": 68, "width": 180, "height": 34, "text": "Foundry IQ Shared KB", "fontSize": 18, "fontFamily": 5, "strokeColor": "#5b21b6", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-kb-dev", "type": "text", "x": 1004, "y": 228, "width": 198, "height": 34, "text": "Foundry IQ Development KB", "fontSize": 18, "fontFamily": 5, "strokeColor": "#5b21b6", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-kb-hr", "type": "text", "x": 996, "y": 428, "width": 214, "height": 34, "text": "Foundry IQ Human Resources KB", "fontSize": 18, "fontFamily": 5, "strokeColor": "#5b21b6", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-kb-mkt", "type": "text", "x": 1008, "y": 628, "width": 190, "height": 34, "text": "Foundry IQ Marketing KB", "fontSize": 18, "fontFamily": 5, "strokeColor": "#5b21b6", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-evaluate", "type": "text", "x": 1328, "y": 448, "width": 156, "height": 54, "text": "Evaluate Gate\\nPolicy + Quality", "fontSize": 20, "fontFamily": 5, "strokeColor": "#92400e", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-operate", "type": "text", "x": 1602, "y": 424, "width": 206, "height": 112, "text": "Operate\\nApp Insights\\nContinuous Eval\\nAgent365 Governance", "fontSize": 20, "fontFamily": 5, "strokeColor": "#1e3a8a", "backgroundColor": "transparent", "roughness": 0},
+    {"id": "t-identity", "type": "text", "x": 730, "y": 845, "width": 460, "height": 40, "text": "Entra ID + RBAC enforced for agents, toolboxes, and search boundaries", "fontSize": 18, "fontFamily": 5, "strokeColor": "#334155", "backgroundColor": "transparent", "roughness": 0},
+
+    {"id": "a-build-dev", "type": "arrow", "x": 300, "y": 450, "width": 60, "height": 260, "points": [[0, 0], [30, 0], [30, -260], [60, -260]], "strokeColor": "#2563eb", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-build-hr", "type": "arrow", "x": 300, "y": 480, "width": 60, "height": 50, "points": [[0, 0], [25, 0], [25, -50], [60, -50]], "strokeColor": "#2563eb", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-build-mkt", "type": "arrow", "x": 300, "y": 510, "width": 60, "height": 160, "points": [[0, 0], [25, 0], [25, 160], [60, 160]], "strokeColor": "#2563eb", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+
+    {"id": "a-dev-agent-toolbox", "type": "arrow", "x": 620, "y": 190, "width": 60, "height": 5, "points": [[0, 0], [30, 0], [30, -5], [60, -5]], "strokeColor": "#0f766e", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-hr-agent-toolbox", "type": "arrow", "x": 620, "y": 430, "width": 60, "height": 1, "points": [[0, 0], [25, 0], [25, 0], [60, 0]], "strokeColor": "#0f766e", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-mkt-agent-toolbox", "type": "arrow", "x": 620, "y": 670, "width": 60, "height": 5, "points": [[0, 0], [30, 0], [30, 5], [60, 5]], "strokeColor": "#0f766e", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+
+    {"id": "a-dev-toolbox-shared", "type": "arrow", "x": 900, "y": 170, "width": 80, "height": 85, "points": [[0, 0], [40, 0], [40, -85], [80, -85]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-dev-toolbox-dev", "type": "arrow", "x": 900, "y": 190, "width": 80, "height": 55, "points": [[0, 0], [40, 0], [40, 55], [80, 55]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-hr-toolbox-shared", "type": "arrow", "x": 900, "y": 420, "width": 80, "height": 315, "points": [[0, 0], [50, 0], [50, -315], [80, -315]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-hr-toolbox-hr", "type": "arrow", "x": 900, "y": 430, "width": 80, "height": 15, "points": [[0, 0], [40, 0], [40, 15], [80, 15]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-mkt-toolbox-shared", "type": "arrow", "x": 900, "y": 665, "width": 80, "height": 540, "points": [[0, 0], [60, 0], [60, -540], [80, -540]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-mkt-toolbox-mkt", "type": "arrow", "x": 900, "y": 675, "width": 80, "height": 30, "points": [[0, 0], [40, 0], [40, -30], [80, -30]], "strokeColor": "#7c2d12", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+
+    {"id": "a-kb-shared-eval", "type": "arrow", "x": 1220, "y": 85, "width": 70, "height": 365, "points": [[0, 0], [35, 0], [35, 365], [70, 365]], "strokeColor": "#6d28d9", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-kb-dev-eval", "type": "arrow", "x": 1220, "y": 245, "width": 70, "height": 225, "points": [[0, 0], [35, 0], [35, 225], [70, 225]], "strokeColor": "#6d28d9", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-kb-hr-eval", "type": "arrow", "x": 1220, "y": 445, "width": 70, "height": 45, "points": [[0, 0], [35, 0], [35, 45], [70, 45]], "strokeColor": "#6d28d9", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-kb-mkt-eval", "type": "arrow", "x": 1220, "y": 645, "width": 70, "height": 135, "points": [[0, 0], [35, 0], [35, -135], [70, -135]], "strokeColor": "#6d28d9", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+
+    {"id": "a-eval-operate", "type": "arrow", "x": 1520, "y": 475, "width": 60, "height": 1, "points": [[0, 0], [20, 0], [20, 0], [60, 0]], "strokeColor": "#b45309", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-identity-plane-left", "type": "arrow", "x": 960, "y": 810, "width": 430, "height": 70, "points": [[0, 0], [-200, 0], [-200, -70], [-430, -70]], "strokeColor": "#334155", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"},
+    {"id": "a-identity-plane-right", "type": "arrow", "x": 960, "y": 810, "width": 140, "height": 110, "points": [[0, 0], [80, 0], [80, -110], [140, -110]], "strokeColor": "#334155", "backgroundColor": "transparent", "strokeWidth": 2, "roughness": 0, "roundness": {"type": 2}, "endArrowhead": "arrow"}
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": 20
+  },
+  "files": {}
+}
