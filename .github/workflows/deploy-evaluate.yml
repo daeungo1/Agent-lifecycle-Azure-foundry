@@ -1,0 +1,160 @@
+name: deploy-evaluate
+
+'on':
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-evaluate-${{ vars.AZURE_ENV_NAME }}
+  cancel-in-progress: false
+
+jobs:
+  deploy_evaluate:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v2
+
+      - name: Build
+        run: |
+          python -m ruff check .
+          python -m pytest tests/test_eval_datasets.py -v
+
+      - name: Install Foundry extension
+        run: |
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension add microsoft.foundry --no-prompt
+
+      - name: Configure OIDC authentication
+        run: |
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd auth login --client-id "$AZURE_CLIENT_ID" --federated-credential-provider github --tenant-id "$AZURE_TENANT_ID"
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env select "$AZURE_ENV_NAME" --no-prompt || AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID" --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_LOCATION "$AZURE_LOCATION" --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
+
+      - name: provision
+        run: |
+          mkdir -p artifacts
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd provision --no-prompt
+
+      - name: knowledge bases
+        run: |
+          python scripts/provision_knowledge_bases.py > artifacts/knowledge-bases.json
+
+      - name: toolboxes
+        run: |
+          pwsh -File scripts/configure_toolboxes.ps1 -NoLogo -NoProfile
+
+      - name: deploy
+        run: |
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd deploy --no-prompt
+
+      - name: RBAC
+        run: |
+          python scripts/set_agent_rbac.py > artifacts/rbac.json
+
+      - name: three-agent smoke
+        run: |
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Provide a brief development sprint update with citations." --no-prompt --output raw > artifacts/smoke-development.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Summarize a policy onboarding checklist with citations." --no-prompt --output raw > artifacts/smoke-human-resources.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Draft a campaign launch summary with citations." --no-prompt --output raw > artifacts/smoke-marketing.txt
+          python scripts/verify_deployment.py --output-json artifacts/verify-deployment.json
+
+      - name: Evaluate
+        run: |
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension list --output json > artifacts/azd-extensions.json
+          if AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --help > artifacts/eval-help.txt 2>&1; then
+            if grep -q -- "--config" artifacts/eval-help.txt; then
+              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
+            else
+              echo "Current evaluation command does not support --config" >&2
+              cat artifacts/eval-help.txt
+              exit 1
+            fi
+          else
+            echo "Current extension does not expose evaluation commands" >&2
+            cat artifacts/eval-help.txt
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          import yaml
+
+          eval_result_path = Path("artifacts/eval-results.json")
+          if not eval_result_path.exists():
+              raise SystemExit("Missing eval-results.json")
+
+          result = json.loads(eval_result_path.read_text(encoding="utf-8"))
+          cfg = yaml.safe_load(Path("eval.yaml").read_text(encoding="utf-8")) or {}
+          threshold = float((cfg.get("options") or {}).get("pass_threshold", 0.70))
+
+          def collect_scores(value):
+              scores = []
+              if isinstance(value, dict):
+                  for key, inner in value.items():
+                      k = str(key).lower()
+                      if k in {"score", "overall_score", "overall", "pass_rate", "mean_score"}:
+                          try:
+                              scores.append(float(inner))
+                          except (TypeError, ValueError):
+                              pass
+                      scores.extend(collect_scores(inner))
+              elif isinstance(value, list):
+                  for item in value:
+                      scores.extend(collect_scores(item))
+              return scores
+
+          all_scores = collect_scores(result)
+          if not all_scores:
+              raise SystemExit("No score value found in evaluation output")
+
+          observed = max(all_scores)
+          if observed < threshold:
+              raise SystemExit(
+                  f"Evaluation score {observed:.4f} is below threshold {threshold:.4f}"
+              )
+          print(json.dumps({"observed": observed, "threshold": threshold}, indent=2))
+          PY
+
+      - name: Operate
+        run: |
+          python scripts/configure_continuous_evaluation.py > artifacts/continuous-evaluation.json
+          python scripts/agent365/configure_observability.py > artifacts/agent365-observability.json
+          python scripts/agent365/verify_registry.py --prerequisites-claimed > artifacts/agent365-registry.json
+
+      - name: Upload deployment artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-evaluate-artifacts
+          path: artifacts/
+          if-no-files-found: warn
