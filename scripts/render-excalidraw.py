@@ -166,6 +166,59 @@ def _draw_arrowhead(
     draw.polygon([end, p2, p3], fill=color)
 
 
+def _line_metrics(font: ImageFont.ImageFont, line: str) -> tuple[float, float]:
+    sample = line if line else " "
+    if hasattr(font, "getbbox"):
+        left, top, right, bottom = font.getbbox(sample)
+        width = float(max(0, right - left))
+        height = float(max(1, bottom - top))
+    else:
+        width, height = font.getsize(sample)
+        width = float(width)
+        height = float(max(1, height))
+    if not line:
+        return (0.0, height)
+    return (width, height)
+
+
+def _layout_multiline_text(
+    draw: ImageDraw.ImageDraw | None,
+    text: str,
+    font: ImageFont.ImageFont,
+    box_x: float,
+    box_y: float,
+    box_w: float,
+    box_h: float,
+    spacing: int,
+) -> tuple[list[str], list[tuple[float, float]], float]:
+    del draw  # The layout uses font metrics only and is deterministic.
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n") if normalized else [""]
+
+    widths: list[float] = []
+    heights: list[float] = []
+    for line in lines:
+        width, height = _line_metrics(font, line)
+        widths.append(width)
+        heights.append(height)
+
+    if not heights:
+        return ([], [], 0.0)
+
+    total_height = sum(heights) + spacing * max(0, len(lines) - 1)
+    start_y = box_y + max(0.0, (box_h - total_height) / 2.0)
+
+    starts: list[tuple[float, float]] = []
+    cursor_y = start_y
+    for index, _line in enumerate(lines):
+        line_w = widths[index]
+        line_h = heights[index]
+        line_x = box_x + max(0.0, (box_w - line_w) / 2.0)
+        starts.append((line_x, cursor_y))
+        cursor_y += line_h + spacing
+    return (lines, starts, total_height)
+
+
 def _draw_rectangles(
     draw: ImageDraw.ImageDraw,
     elements: Iterable[dict],
@@ -222,16 +275,24 @@ def _draw_text(
             continue
         x = float(element.get("x", 0.0)) + shift_x
         y = float(element.get("y", 0.0)) + shift_y
+        width = float(element.get("width", 0.0))
+        height = float(element.get("height", 0.0))
         font_size = int(element.get("fontSize", 20))
         font = _load_font(font_size)
-        draw.multiline_text(
-            (x, y),
-            text,
-            fill=_stroke_color(element),
+        spacing = max(4, int(round(font_size * 0.2)))
+        lines, starts, _ = _layout_multiline_text(
+            draw=draw,
+            text=text,
             font=font,
-            spacing=4,
-            align="left",
+            box_x=x,
+            box_y=y,
+            box_w=width,
+            box_h=height,
+            spacing=spacing,
         )
+        color = _stroke_color(element)
+        for line, (line_x, line_y) in zip(lines, starts):
+            draw.text((line_x, line_y), line, fill=color, font=font)
 
 
 def render_excalidraw(

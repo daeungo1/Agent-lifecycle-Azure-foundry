@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import math
 from pathlib import Path
@@ -27,6 +28,18 @@ def _load_architecture() -> dict:
     source = _architecture_source_path()
     assert source.exists(), f"Missing architecture source: {source}"
     return json.loads(source.read_text(encoding="utf-8"))
+
+
+def _elements_by_id(data: dict) -> dict[str, dict]:
+    elements = data.get("elements")
+    if not isinstance(elements, list):
+        return {}
+    by_id: dict[str, dict] = {}
+    for element in elements:
+        element_id = element.get("id")
+        if isinstance(element_id, str):
+            by_id[element_id] = element
+    return by_id
 
 
 def _element_points(element: dict) -> list[tuple[float, float]]:
@@ -132,6 +145,103 @@ def test_architecture_layout_contract() -> None:
                 )
 
 
+def test_architecture_text_contract() -> None:
+    data = _load_architecture()
+    by_id = _elements_by_id(data)
+    elements = data["elements"]
+    text_elements = [element for element in elements if element.get("type") == "text"]
+    assert text_elements, "Diagram must include text elements"
+
+    for element in text_elements:
+        text = element.get("text")
+        if not isinstance(text, str):
+            continue
+        assert "\\n" not in text, "Use real newline escapes (\\n), not literal backslash-n"
+        font_size = element.get("fontSize")
+        assert isinstance(font_size, int)
+        assert font_size >= 16, "All diagram text must be at least 16px"
+
+    title = by_id.get("t-title")
+    assert isinstance(title, dict), "Diagram title text is required"
+    assert title.get("text") == "Enterprise Agent Lifecycle: Build -> Evaluate -> Operate"
+    assert int(title.get("fontSize", 0)) >= 24
+
+
+def test_architecture_text_within_boxes_contract() -> None:
+    data = _load_architecture()
+    by_id = _elements_by_id(data)
+
+    text_to_rect = {
+        "t-dev-agent": "r-dev-agent",
+        "t-hr-agent": "r-hr-agent",
+        "t-mkt-agent": "r-mkt-agent",
+        "t-dev-toolbox": "r-dev-toolbox",
+        "t-hr-toolbox": "r-hr-toolbox",
+        "t-mkt-toolbox": "r-mkt-toolbox",
+        "t-kb-shared": "r-kb-shared",
+        "t-kb-dev": "r-kb-dev",
+        "t-kb-hr": "r-kb-hr",
+        "t-kb-mkt": "r-kb-mkt",
+        "t-evaluate": "r-evaluate",
+        "t-operate": "r-operate",
+    }
+
+    for text_id, rect_id in text_to_rect.items():
+        text_el = by_id[text_id]
+        rect_el = by_id[rect_id]
+
+        tx = float(text_el["x"])
+        ty = float(text_el["y"])
+        tw = float(text_el["width"])
+        th = float(text_el["height"])
+
+        rx = float(rect_el["x"])
+        ry = float(rect_el["y"])
+        rw = float(rect_el["width"])
+        rh = float(rect_el["height"])
+
+        assert tx >= rx + 20, f"{text_id} must keep >=20px left padding"
+        assert ty >= ry + 20, f"{text_id} must keep >=20px top padding"
+        assert tx + tw <= rx + rw - 20, f"{text_id} must keep >=20px right padding"
+        assert ty + th <= ry + rh - 20, f"{text_id} must keep >=20px bottom padding"
+
+
+def test_renderer_multiline_layout_contract() -> None:
+    repo_root = _repo_root()
+    script_path = repo_root.joinpath("scripts", "render-excalidraw.py")
+    assert script_path.exists(), f"Missing renderer script: {script_path}"
+
+    spec = importlib.util.spec_from_file_location("render_excalidraw", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert hasattr(module, "_layout_multiline_text"), "Renderer must expose multiline layout helper"
+
+    font = module._load_font(18)
+    lines, starts, total_height = module._layout_multiline_text(
+        draw=None,
+        text="Line A\nLine B\nLine C",
+        font=font,
+        box_x=100.0,
+        box_y=200.0,
+        box_w=240.0,
+        box_h=140.0,
+        spacing=4,
+    )
+
+    assert lines == ["Line A", "Line B", "Line C"]
+    assert len(starts) == 3
+    assert starts[0][0] >= 100.0
+    assert starts[1][0] >= 100.0
+    assert starts[2][0] >= 100.0
+    assert starts[0][0] <= 340.0
+    assert starts[1][0] <= 340.0
+    assert starts[2][0] <= 340.0
+    assert total_height <= 140.0
+
+
 def test_architecture_png_contract() -> None:
     png_path = _architecture_png_path()
     assert png_path.exists(), f"Missing rendered PNG: {png_path}"
@@ -140,8 +250,8 @@ def test_architecture_png_contract() -> None:
     with Image.open(png_path) as image:
         rgba = image.convert("RGBA")
         width, height = rgba.size
-        assert width >= 1400
-        assert height >= 800
+        assert width >= 1850
+        assert height >= 950
 
         alpha = rgba.getchannel("A")
         alpha_extrema = alpha.getextrema()
