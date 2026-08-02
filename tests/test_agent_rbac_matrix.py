@@ -3,6 +3,7 @@ from __future__ import annotations
 from scripts.set_agent_rbac import (
     DEPARTMENT_BY_AGENT,
     ROLE_NAME,
+    _get_project_endpoint,
     build_desired_scope_matrix,
     build_role_assignment_create_args,
     build_role_assignment_list_args,
@@ -89,3 +90,44 @@ def test_role_assignment_command_builders_include_required_flags() -> None:
     assert "--assignee-object-id" in create_args
     assert "--scope" in create_args
     assert "--role" in create_args
+
+
+def test_get_project_endpoint_prefers_azure_alias(monkeypatch) -> None:
+    monkeypatch.setenv("AZURE_AI_PROJECT_ENDPOINT", "https://azure-alias.example")
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://foundry.example")
+
+    value = _get_project_endpoint({})
+    assert value == "https://azure-alias.example"
+
+
+def test_get_project_endpoint_falls_back_to_foundry_alias(monkeypatch) -> None:
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://foundry.example")
+
+    value = _get_project_endpoint({})
+    assert value == "https://foundry.example"
+
+
+def test_get_project_endpoint_reads_from_azd_env_aliases(monkeypatch) -> None:
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
+
+    value = _get_project_endpoint(
+        {
+            "FOUNDRY_PROJECT_ENDPOINT": "https://from-azd-foundry.example",
+            "AZURE_AI_PROJECT_ENDPOINT": "https://from-azd-azure.example",
+        }
+    )
+    assert value == "https://from-azd-azure.example"
+
+
+def test_get_project_endpoint_missing_raises(monkeypatch) -> None:
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
+
+    try:
+        _get_project_endpoint({})
+    except ValueError as exc:
+        assert "AZURE_AI_PROJECT_ENDPOINT" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError when endpoint aliases are missing")

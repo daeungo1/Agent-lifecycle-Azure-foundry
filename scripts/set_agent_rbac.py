@@ -64,11 +64,17 @@ def _run_json_command(args: list[str]) -> Any:
 
 
 def _get_project_endpoint(azd_env: dict[str, str]) -> str:
-    endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT") or azd_env.get(
-        "AZURE_AI_PROJECT_ENDPOINT", ""
+    endpoint = (
+        os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+        or os.getenv("FOUNDRY_PROJECT_ENDPOINT")
+        or azd_env.get("AZURE_AI_PROJECT_ENDPOINT", "")
+        or azd_env.get("FOUNDRY_PROJECT_ENDPOINT", "")
     )
     if not endpoint:
-        raise ValueError("Missing required environment value: AZURE_AI_PROJECT_ENDPOINT")
+        raise ValueError(
+            "Missing required environment value: AZURE_AI_PROJECT_ENDPOINT or "
+            "FOUNDRY_PROJECT_ENDPOINT"
+        )
     return endpoint
 
 

@@ -56,6 +56,9 @@ def test_ci_workflow_contract() -> None:
     assert "pull_request" in triggers
 
     steps = _job_steps(workflow, "build")
+    defaults = workflow.get("jobs", {}).get("build", {}).get("defaults", {})
+    assert defaults.get("run", {}).get("shell") == "bash"
+
     uses = [str(step.get("uses", "")) for step in steps if "uses" in step]
     assert "actions/checkout@v4" in uses
     assert "actions/setup-python@v5" in uses
@@ -90,6 +93,9 @@ def test_deploy_workflow_contract() -> None:
     assert concurrency.get("cancel-in-progress") is False
 
     steps = _job_steps(workflow, "deploy_evaluate")
+    defaults = workflow.get("jobs", {}).get("deploy_evaluate", {}).get("defaults", {})
+    assert defaults.get("run", {}).get("shell") == "bash"
+
     uses = [str(step.get("uses", "")) for step in steps if "uses" in step]
     assert "actions/checkout@v4" in uses
     assert "actions/setup-python@v5" in uses
@@ -102,6 +108,8 @@ def test_deploy_workflow_contract() -> None:
     assert "--federated-credential-provider github" in joined
     assert "--tenant-id" in joined
     assert "AZURE_CLIENT_SECRET" not in joined
+    assert "azd env set AZURE_AI_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
+    assert "azd env set FOUNDRY_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
 
     assert "azd extension add microsoft.foundry" in joined
     assert "AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd" in joined
@@ -132,6 +140,7 @@ def test_deploy_workflow_contract() -> None:
     assert any("marketing-agent" in line for line in smoke_lines)
     assert all("--no-prompt" in line for line in smoke_lines)
     assert all("--output raw" in line for line in smoke_lines)
+    assert "python scripts/verify_deployment.py --smoke-artifacts-dir artifacts" in joined
 
     # Stage order enforcement.
     build_index = _find_step_index(steps, "build")
@@ -147,9 +156,19 @@ def test_deploy_workflow_contract() -> None:
     assert deploy_index < rbac_index < smoke_index < evaluate_index < operate_index
 
     assert "azd ai agent eval run" in joined
+    eval_gate_cmd = (
+        "python scripts/validate_eval_results.py "
+        "--config eval.yaml "
+        "--results artifacts/eval-results.json "
+        "--output artifacts/eval-gate.json"
+    )
+    assert eval_gate_cmd in joined
     assert "python scripts/configure_continuous_evaluation.py" in joined
     assert "python scripts/agent365/configure_observability.py" in joined
     assert "python scripts/agent365/verify_registry.py" in joined
+
+    # Evaluate must happen before operate regardless of step text casing.
+    assert evaluate_index < operate_index
 
     artifact_uses = [u for u in uses if u.startswith("actions/upload-artifact@")]
     assert "actions/upload-artifact@v4" in artifact_uses
@@ -172,6 +191,13 @@ def test_verify_deployment_parses_azd_env_lines() -> None:
     }
 
 
+def test_verify_deployment_does_not_build_invoke_args() -> None:
+    script_text = _repo_root().joinpath("scripts", "verify_deployment.py").read_text(
+        encoding="utf-8"
+    )
+    assert "agent invoke" not in script_text
+
+
 def test_verify_deployment_fails_when_any_agent_inactive(monkeypatch: pytest.MonkeyPatch) -> None:
     from scripts import verify_deployment as target
 
@@ -187,18 +213,18 @@ def test_verify_deployment_fails_when_any_agent_inactive(monkeypatch: pytest.Mon
             return {"status": "failed"}
         if args[:5] == ["azd", "ai", "agent", "show", "marketing-agent"]:
             return {"status": "active"}
-        if args[:4] == ["azd", "ai", "agent", "invoke"]:
-            return "ok"
         raise AssertionError(f"Unexpected args: {args}")
 
     monkeypatch.setattr(target, "run_command", fake_run)
 
     exit_code = target.main([
+        "--smoke-artifacts-dir",
+        str(_repo_root().joinpath(".pytest_cache")),
         "--output-json",
         str(_repo_root().joinpath(".pytest_cache", "verify-deployment.json")),
     ])
     assert exit_code != 0
-    assert any(args[:4] == ["azd", "ai", "agent", "invoke"] for args in call_log)
+    assert not any(args[:4] == ["azd", "ai", "agent", "invoke"] for args in call_log)
 
 
 def test_verify_deployment_writes_summary_when_all_agents_active(
@@ -212,14 +238,20 @@ def test_verify_deployment_writes_summary_when_all_agents_active(
             return "AZURE_ENV_NAME=dev\n"
         if args[:4] == ["azd", "ai", "agent", "show"]:
             return {"status": "active", "name": args[4]}
-        if args[:4] == ["azd", "ai", "agent", "invoke"]:
-            return "non-empty response"
         raise AssertionError(f"Unexpected args: {args}")
 
     monkeypatch.setattr(target, "run_command", fake_run)
 
+    for dept in ["development", "human-resources", "marketing"]:
+        tmp_path.joinpath(f"smoke-{dept}.txt").write_text("non-empty response\n", encoding="utf-8")
+
     output_json = tmp_path.joinpath("verify-summary.json")
-    exit_code = target.main(["--output-json", str(output_json)])
+    exit_code = target.main([
+        "--smoke-artifacts-dir",
+        str(tmp_path),
+        "--output-json",
+        str(output_json),
+    ])
     assert exit_code == 0
 
     summary = json.loads(output_json.read_text(encoding="utf-8"))
@@ -231,3 +263,37 @@ def test_verify_deployment_writes_summary_when_all_agents_active(
     }
     assert all(item["status"] == "active" for item in summary["agents"].values())
     assert all(item["smoke_response"] for item in summary["agents"].values())
+
+
+def test_verify_deployment_requires_smoke_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from scripts import verify_deployment as target
+
+    def fake_run(args: list[str], *, capture_json: bool = False):
+        if args[:4] == ["azd", "env", "get-values", "--no-prompt"]:
+            return "AZURE_ENV_NAME=dev\n"
+        if args[:4] == ["azd", "ai", "agent", "show"]:
+            return {"status": "active", "name": args[4]}
+        raise AssertionError(f"Unexpected args: {args}")
+
+    monkeypatch.setattr(target, "run_command", fake_run)
+
+    tmp_path.joinpath("smoke-development.txt").write_text("ok\n", encoding="utf-8")
+    tmp_path.joinpath("smoke-human-resources.txt").write_text("\n", encoding="utf-8")
+    # smoke-marketing.txt intentionally absent
+
+    output_json = tmp_path.joinpath("verify-summary.json")
+    exit_code = target.main([
+        "--smoke-artifacts-dir",
+        str(tmp_path),
+        "--output-json",
+        str(output_json),
+    ])
+    assert exit_code != 0
+
+    summary = json.loads(output_json.read_text(encoding="utf-8"))
+    assert summary["status"] == "failure"
+    assert any("smoke-human-resources.txt" in item for item in summary["failures"])
+    assert any("smoke-marketing.txt" in item for item in summary["failures"])

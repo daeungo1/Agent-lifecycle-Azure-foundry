@@ -16,6 +16,9 @@ concurrency:
 jobs:
   deploy_evaluate:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       TENANT_ID: ${{ vars.TENANT_ID }}
@@ -57,7 +60,10 @@ jobs:
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env select "$AZURE_ENV_NAME" --no-prompt || AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SUBSCRIPTION_ID "$SUBSCRIPTION_ID" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_LOCATION "$AZURE_LOCATION" --no-prompt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
+          if [ -n "$FOUNDRY_PROJECT_ENDPOINT" ]; then
+            AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
+            AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_AI_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
+          fi
 
       - name: provision
         run: |
@@ -85,7 +91,7 @@ jobs:
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Provide a brief development sprint update with citations." --no-prompt --output raw > artifacts/smoke-development.txt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Summarize a policy onboarding checklist with citations." --no-prompt --output raw > artifacts/smoke-human-resources.txt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Draft a campaign launch summary with citations." --no-prompt --output raw > artifacts/smoke-marketing.txt
-          python scripts/verify_deployment.py --output-json artifacts/verify-deployment.json
+          python scripts/verify_deployment.py --smoke-artifacts-dir artifacts --output-json artifacts/verify-deployment.json
 
       - name: Evaluate
         run: |
@@ -103,47 +109,7 @@ jobs:
             cat artifacts/eval-help.txt
             exit 1
           fi
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          import yaml
-
-          eval_result_path = Path("artifacts/eval-results.json")
-          if not eval_result_path.exists():
-              raise SystemExit("Missing eval-results.json")
-
-          result = json.loads(eval_result_path.read_text(encoding="utf-8"))
-          cfg = yaml.safe_load(Path("eval.yaml").read_text(encoding="utf-8")) or {}
-          threshold = float((cfg.get("options") or {}).get("pass_threshold", 0.70))
-
-          def collect_scores(value):
-              scores = []
-              if isinstance(value, dict):
-                  for key, inner in value.items():
-                      k = str(key).lower()
-                      if k in {"score", "overall_score", "overall", "pass_rate", "mean_score"}:
-                          try:
-                              scores.append(float(inner))
-                          except (TypeError, ValueError):
-                              pass
-                      scores.extend(collect_scores(inner))
-              elif isinstance(value, list):
-                  for item in value:
-                      scores.extend(collect_scores(item))
-              return scores
-
-          all_scores = collect_scores(result)
-          if not all_scores:
-              raise SystemExit("No score value found in evaluation output")
-
-          observed = max(all_scores)
-          if observed < threshold:
-              raise SystemExit(
-                  f"Evaluation score {observed:.4f} is below threshold {threshold:.4f}"
-              )
-          print(json.dumps({"observed": observed, "threshold": threshold}, indent=2))
-          PY
+          python scripts/validate_eval_results.py --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 
       - name: Operate
         run: |
