@@ -26,6 +26,7 @@ jobs:
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
+      A365_PREREQUISITES_CLAIMED: ${{ vars.A365_PREREQUISITES_CLAIMED }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

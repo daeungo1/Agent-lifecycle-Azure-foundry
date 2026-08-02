@@ -79,6 +79,7 @@ python services/agents/marketing/main.py
 ```bash
 azd extension install microsoft.foundry --no-prompt
 azd provision --no-prompt
+mkdir -p artifacts
 python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
 pwsh -File scripts/configure_toolboxes.ps1
 azd deploy --no-prompt
