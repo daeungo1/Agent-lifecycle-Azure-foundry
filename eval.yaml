@@ -1,0 +1,37 @@
+name: enterprise-lifecycle-local-eval
+
+agent:
+  name: department-lifecycle-coordinator
+
+dataset:
+  local_uri: evals/data
+
+evaluators:
+  - intent_resolution
+  - task_adherence
+  - relevance
+  - tool_call_accuracy
+  - groundedness
+
+tiers:
+  - smoke
+  - regression
+
+smoke:
+  include_files:
+    - evals/data/security-boundaries.jsonl
+    - evals/data/regression.jsonl
+  max_samples: 12
+
+regression:
+  include_files:
+    - evals/data/development.jsonl
+    - evals/data/human-resources.jsonl
+    - evals/data/marketing.jsonl
+    - evals/data/regression.jsonl
+    - evals/data/security-boundaries.jsonl
+
+options:
+  pass_threshold: 0.70
+  fail_on_missing_tool_call: true
+  require_grounded_citation: true
