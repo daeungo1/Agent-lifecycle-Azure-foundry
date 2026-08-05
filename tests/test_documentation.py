@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from PIL import Image, ImageStat
@@ -20,6 +21,10 @@ def _architecture_png_path() -> Path:
     return _repo_root().joinpath("docs", "architecture", "enterprise-agent-lifecycle.png")
 
 
+def _architecture_svg_path(name: str) -> Path:
+    return _repo_root().joinpath("docs", "architecture", name)
+
+
 def _readme_path() -> Path:
     return _repo_root().joinpath("README.md")
 
@@ -28,6 +33,35 @@ def _load_architecture() -> dict:
     source = _architecture_source_path()
     assert source.exists(), f"Missing architecture source: {source}"
     return json.loads(source.read_text(encoding="utf-8"))
+
+
+def _load_svg(name: str) -> ET.Element:
+    path = _architecture_svg_path(name)
+    assert path.exists(), f"Missing SVG: {path}"
+    return ET.parse(path).getroot()
+
+
+def _svg_group_ids(root: ET.Element) -> set[str]:
+    return {
+        element.attrib["id"]
+        for element in root.iter("{http://www.w3.org/2000/svg}g")
+        if "id" in element.attrib
+    }
+
+
+def _assert_safe_self_contained_svg(root: ET.Element, source: str) -> None:
+    assert root.tag == "{http://www.w3.org/2000/svg}svg"
+    assert root.attrib.get("role") == "img"
+    assert root.attrib.get("aria-labelledby") == "title desc"
+    assert root.find("{http://www.w3.org/2000/svg}title") is not None
+    assert root.find("{http://www.w3.org/2000/svg}desc") is not None
+    assert "<script" not in source.lower()
+    assert all(ord(char) < 128 for char in source), "SVG source must remain ASCII"
+
+    for element in root.iter():
+        for attribute, value in element.attrib.items():
+            if attribute.endswith("href"):
+                assert not value.startswith(("http://", "https://", "data:"))
 
 
 def _elements_by_id(data: dict) -> dict[str, dict]:
@@ -270,6 +304,82 @@ def test_architecture_png_contract() -> None:
         assert non_white > max(5000, total // 200), "Image cannot be all-white"
 
 
+def test_lifecycle_workflow_svg_contract() -> None:
+    root = _load_svg("agent-lifecycle-workflow.svg")
+    source = ET.tostring(root, encoding="unicode")
+    _assert_safe_self_contained_svg(root, source)
+
+    assert root.attrib.get("viewBox") == "0 0 1440 900"
+    assert {
+        "build-stage",
+        "provision-stage",
+        "department-agents",
+        "knowledge-boundaries",
+        "evaluate-stage",
+        "operate-stage",
+        "identity-rail",
+        "feedback-loop",
+    } <= _svg_group_ids(root)
+
+    for label in [
+        "Build",
+        "Provision and deploy",
+        "Evaluate",
+        "Operate",
+        "Development",
+        "Human Resources",
+        "Marketing",
+        "Foundry IQ",
+        "Feedback loop",
+    ]:
+        assert label in source
+    assert "Ruff + 117 tests" not in source
+
+
+def test_azure_resource_svg_contract() -> None:
+    root = _load_svg("azure-resource-architecture.svg")
+    source = ET.tostring(root, encoding="unicode")
+    _assert_safe_self_contained_svg(root, source)
+
+    assert root.attrib.get("viewBox") == "0 0 1440 1000"
+    assert {
+        "delivery-plane",
+        "identity-plane",
+        "azure-subscription",
+        "resource-group",
+        "foundry-account",
+        "foundry-project",
+        "hosted-agents",
+        "search-boundaries",
+        "operate-integrations",
+        "target-hardening",
+        "legend",
+        "department-knowledge-bindings",
+    } <= _svg_group_ids(root)
+
+    for label in [
+        "Azure subscription",
+        "rg-agent-lifecycle-demo",
+        "Microsoft Foundry",
+        "gpt-5.4-mini",
+        "Hosted Agents",
+        "Azure AI Search",
+        "Microsoft Entra ID",
+        "Application Insights",
+        "Private endpoint",
+        "Current deployment",
+        "Post-provision binding",
+        "Optional hardening target",
+    ]:
+        assert label in source
+    for access_rule in ["Shared + Development", "Shared + HR", "Shared + Marketing"]:
+        assert access_rule in source
+    assert "Shared Foundry IQ knowledge base" not in source
+    assert source.count('class="post"') >= 6
+    assert "No resource provisioning is implied" in source
+    assert "Verified or prerequisite-skipped" in source
+
+
 def test_readme_architecture_and_commands_contract() -> None:
     readme = _readme_path()
     assert readme.exists(), f"Missing README: {readme}"
@@ -277,17 +387,32 @@ def test_readme_architecture_and_commands_contract() -> None:
     content = readme.read_text(encoding="utf-8")
     assert content.startswith("# ")
     image_embed = (
-        "![Enterprise agent lifecycle architecture]"
-        "(docs/architecture/enterprise-agent-lifecycle.png)"
+        "![Enterprise agent lifecycle workflow]"
+        "(docs/architecture/agent-lifecycle-workflow.svg)"
+    )
+    resource_embed = (
+        "![Azure resource architecture]"
+        "(docs/architecture/azure-resource-architecture.svg)"
     )
     source_link = (
-        "[Edit Excalidraw source]"
+        "[Legacy Excalidraw sketch]"
         "(docs/architecture/enterprise-agent-lifecycle.excalidraw)"
     )
     assert (
         image_embed in content
     )
+    assert resource_embed in content
     assert source_link in content
+    lifecycle_link = (
+        "[Open full-size lifecycle SVG]"
+        "(docs/architecture/agent-lifecycle-workflow.svg)"
+    )
+    resource_link = (
+        "[Open full-size Azure resource SVG]"
+        "(docs/architecture/azure-resource-architecture.svg)"
+    )
+    assert lifecycle_link in content
+    assert resource_link in content
     assert "```excalidraw" not in content
 
     for phrase in [

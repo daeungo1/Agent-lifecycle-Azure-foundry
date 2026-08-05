@@ -3,6 +3,21 @@ using './main.bicep'
 param location = 'eastus2'
 param namePrefix = 'entlifecyc'
 
+param deployments = [
+  {
+    name: 'gpt-5.4-mini'
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-5.4-mini'
+      version: '2026-03-17'
+    }
+    sku: {
+      name: 'GlobalStandard'
+      capacity: 10
+    }
+  }
+]
+
 param searchServices = {
   shared: {
     name: 'entlifecyc-shared-srch'

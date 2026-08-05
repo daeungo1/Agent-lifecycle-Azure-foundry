@@ -39,4 +39,6 @@ jobs:
         run: python -m pytest tests/test_workflows.py -v
 
       - name: Build Bicep
-        run: az bicep build --file infra/main.bicep
+        run: |
+          az bicep build --file infra/main.bicep
+          az bicep build-params --file infra/main.bicepparam --stdout > /dev/null

@@ -9,6 +9,26 @@ param location string
 @description('Tags applied to the service.')
 param tags object = {}
 
+@description('Object ID that provisions Search objects and index content after deployment.')
+param provisionerPrincipalId string = ''
+
+@description('Principal type used for provisioning role assignments.')
+@allowed([
+  'User'
+  'Group'
+  'ServicePrincipal'
+])
+param provisionerPrincipalType string = 'User'
+
+var searchServiceContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
+)
+var searchIndexDataContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
+)
+
 resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   name: name
   location: location
@@ -25,6 +45,26 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
     semanticSearch: 'free'
     disableLocalAuth: true
     publicNetworkAccess: 'enabled'
+  }
+}
+
+resource provisionerSearchServiceContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(provisionerPrincipalId)) {
+  name: guid(searchService.id, provisionerPrincipalId, searchServiceContributorRoleId)
+  scope: searchService
+  properties: {
+    principalId: provisionerPrincipalId
+    principalType: provisionerPrincipalType
+    roleDefinitionId: searchServiceContributorRoleId
+  }
+}
+
+resource provisionerSearchIndexDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(provisionerPrincipalId)) {
+  name: guid(searchService.id, provisionerPrincipalId, searchIndexDataContributorRoleId)
+  scope: searchService
+  properties: {
+    principalId: provisionerPrincipalId
+    principalType: provisionerPrincipalType
+    roleDefinitionId: searchIndexDataContributorRoleId
   }
 }
 

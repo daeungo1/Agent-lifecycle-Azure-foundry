@@ -2,15 +2,23 @@
 
 This repository provides an enterprise lifecycle baseline for three department-scoped hosted agents on Azure Foundry, with deterministic Build, Evaluate, and Operate controls, strict knowledge boundaries, and least-privilege identity enforcement.
 
-![Enterprise agent lifecycle architecture](docs/architecture/enterprise-agent-lifecycle.png)
+[![Enterprise agent lifecycle workflow](docs/architecture/agent-lifecycle-workflow.svg)](docs/architecture/agent-lifecycle-workflow.svg)
 
-[Edit Excalidraw source](docs/architecture/enterprise-agent-lifecycle.excalidraw)
+[Open full-size lifecycle SVG](docs/architecture/agent-lifecycle-workflow.svg) | [Legacy Excalidraw sketch](docs/architecture/enterprise-agent-lifecycle.excalidraw)
 
 ## Architecture focus: Build -> Evaluate -> Operate
 
 - Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
 - Evaluate: Evaluation is an explicit gate before operate promotion using `eval.yaml` and `scripts/validate_eval_results.py`.
 - Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
+
+## Azure resource architecture
+
+[![Azure resource architecture](docs/architecture/azure-resource-architecture.svg)](docs/architecture/azure-resource-architecture.svg)
+
+[Open full-size Azure resource SVG](docs/architecture/azure-resource-architecture.svg)
+
+Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision bindings; dotted paths are external prerequisites or optional hardening that are not active resources in the current baseline. The current deployment uses public endpoints protected by Microsoft Entra ID and Azure RBAC, with local authentication disabled. The target-state boundary identifies Foundry private networking and the additional Search private endpoint work required for a production-isolated deployment.
 
 ## Departmental multiagent and boundary model
 
