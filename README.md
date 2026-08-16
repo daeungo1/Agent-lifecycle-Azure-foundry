@@ -89,7 +89,7 @@ azd extension install microsoft.foundry --no-prompt
 azd provision --no-prompt
 mkdir -p artifacts
 PYTHONPATH=src python -m lifecycle_ops.provisioning.knowledge_bases --output artifacts/knowledge-bases.json
-pwsh -File scripts/configure_toolboxes.ps1
+PYTHONPATH=src python -m lifecycle_ops.provisioning.toolboxes
 azd deploy --no-prompt
 PYTHONPATH=src python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json
 ```

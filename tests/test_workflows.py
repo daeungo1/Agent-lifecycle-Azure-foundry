@@ -131,7 +131,7 @@ def test_deploy_workflow_contract() -> None:
         "--output artifacts/knowledge-bases.json"
         in joined
     )
-    assert "pwsh -File scripts/configure_toolboxes.ps1" in joined
+    assert "python -m lifecycle_ops.provisioning.toolboxes" in joined
     assert "python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json" in joined
     assert "python -m lifecycle_ops.provisioning.rbac > artifacts/rbac.json" not in joined
     assert (

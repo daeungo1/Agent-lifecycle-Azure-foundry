@@ -438,7 +438,7 @@ def test_readme_architecture_and_commands_contract() -> None:
         "azd provision --no-prompt",
         "python -m lifecycle_ops.provisioning.knowledge_bases "
         "--output artifacts/knowledge-bases.json",
-        "pwsh -File scripts/configure_toolboxes.ps1",
+        "python -m lifecycle_ops.provisioning.toolboxes",
         "azd deploy --no-prompt",
         "python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json",
         "azd ai agent eval run --config eval.yaml --no-prompt --output json",

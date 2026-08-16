@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
-from scripts.toolbox_ops import (
+import pytest
+
+import lifecycle_ops.provisioning.toolboxes as toolboxes
+from lifecycle_ops.provisioning.toolboxes import (
     AUDIENCE,
     DEPARTMENT_TOOLBOXES,
     build_connection_assert_args,
@@ -35,6 +39,33 @@ def test_expected_toolbox_connections_include_only_shared_and_own() -> None:
         "kb-shared-remote-tool",
         "kb-marketing-remote-tool",
     ]
+
+
+def test_load_toolbox_connections_uses_declared_yaml_boundary(tmp_path: Path) -> None:
+    toolbox_path = tmp_path / "development.yaml"
+    toolbox_path.write_text(
+        "connections:\n"
+        "  - name: kb-shared-remote-tool\n"
+        "  - name: kb-development-remote-tool\n",
+        encoding="utf-8",
+    )
+
+    assert toolboxes.load_toolbox_connections(toolbox_path) == [
+        "kb-shared-remote-tool",
+        "kb-development-remote-tool",
+    ]
+
+
+def test_ensure_azd_support_reports_missing_toolbox_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_toolbox(command: list[str]) -> str:
+        raise subprocess.CalledProcessError(2, command)
+
+    monkeypatch.setattr(toolboxes, "_run_raw", fail_toolbox)
+
+    with pytest.raises(RuntimeError, match="does not support 'azd ai toolbox'"):
+        toolboxes._ensure_azd_support()
 
 
 def test_connection_create_args_use_agentic_identity_and_audience() -> None:
@@ -250,18 +281,129 @@ def test_exact_connection_assertion_fails_closed_on_drift() -> None:
         raise AssertionError("expected fail-closed drift assertion")
 
 
-def test_static_script_asserts_publish_with_version_and_final_exact_check() -> None:
-    repo = Path(__file__).resolve().parents[1]
-    script = (repo / "scripts" / "configure_toolboxes.ps1").read_text(encoding="utf-8")
+def test_validate_remote_tool_connection_rejects_drift() -> None:
+    with pytest.raises(ValueError, match="drift detected"):
+        toolboxes.validate_remote_tool_connection(
+            connection_name="kb-development-remote-tool",
+            expected_target="https://expected.test/knowledgebases/dev/mcp",
+            details={
+                "kind": "remote-tool",
+                "target": "https://wrong.test/knowledgebases/dev/mcp",
+                "authType": "agentic-identity",
+                "audience": AUDIENCE,
+            },
+        )
 
-    assert "ai connection show" in script
-    assert '"ai", "connection", "list"' in script
-    assert '"ai", "toolbox", "connection", "add"' in script
-    assert '"ai", "toolbox", "connection", "remove"' in script
-    assert '"--output", "json"' in script
-    assert '"ai", "toolbox", "publish"' in script
-    assert "Get-MutationToolboxVersion" in script
-    assert "FOUNDRY_PROJECT_ENDPOINT" in script
-    assert "toolboxes/$ToolboxName/mcp?api-version=v1" in script
-    assert '"ai", "toolbox", "versions", "list"' not in script
-    assert "ensure_exact_connection_set" in script
+
+def test_validate_remote_tool_connection_treats_default_https_port_as_equivalent() -> None:
+    toolboxes.validate_remote_tool_connection(
+        connection_name="kb-development-remote-tool",
+        expected_target="https://example.test/knowledgebases/dev/mcp",
+        details={
+            "kind": "remote-tool",
+            "target": "https://example.test:443/knowledgebases/dev/mcp",
+            "authType": "agentic-identity",
+            "audience": "https://search.azure.com:443",
+        },
+    )
+
+
+def test_ensure_remote_tool_connection_creates_missing_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_commands: list[list[str]] = []
+    monkeypatch.setattr(toolboxes, "_run_json", lambda command, **kwargs: [])
+    monkeypatch.setattr(
+        toolboxes,
+        "_run_raw",
+        lambda command: raw_commands.append(command) or "",
+    )
+
+    toolboxes.ensure_remote_tool_connection(
+        connection_name="kb-development-remote-tool",
+        target="https://example.test/knowledgebases/dev/mcp",
+    )
+
+    assert raw_commands == [
+        build_connection_create_args(
+            connection_name="kb-development-remote-tool",
+            endpoint="https://example.test/knowledgebases/dev/mcp",
+        )
+    ]
+
+
+def test_upsert_toolbox_verifies_exact_connections_and_sets_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = DEPARTMENT_TOOLBOXES["development"]
+    expected = set(expected_toolbox_connections("development"))
+    payload = {"connections": [{"name": name} for name in sorted(expected)]}
+    env_values: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(toolboxes, "_run_json", lambda command, **kwargs: payload)
+    monkeypatch.setattr(
+        toolboxes,
+        "set_value",
+        lambda name, value: env_values.append((name, value)),
+    )
+
+    result = toolboxes.upsert_toolbox(
+        spec=spec,
+        project_endpoint="https://example.services.ai.azure.com/api/projects/p1",
+    )
+
+    endpoint = (
+        "https://example.services.ai.azure.com/api/projects/p1/"
+        "toolboxes/development-knowledge-toolbox/mcp?api-version=v1"
+    )
+    assert result == {
+        "department": "development",
+        "toolbox_name": "development-knowledge-toolbox",
+        "endpoint": endpoint,
+    }
+    assert env_values == [("TOOLBOX_ENDPOINT_DEVELOPMENT", endpoint)]
+
+
+def test_configure_toolboxes_preserves_connection_then_toolbox_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, str]] = []
+    env = {
+        "FOUNDRY_PROJECT_ENDPOINT": "https://example.services.ai.azure.com/api/projects/p1",
+        "KB_MCP_ENDPOINT_SHARED": "https://example.test/shared",
+        "KB_MCP_ENDPOINT_DEVELOPMENT": "https://example.test/development",
+        "KB_MCP_ENDPOINT_HUMAN_RESOURCES": "https://example.test/human-resources",
+        "KB_MCP_ENDPOINT_MARKETING": "https://example.test/marketing",
+    }
+    monkeypatch.setattr(toolboxes, "_ensure_azd_support", lambda: None)
+    monkeypatch.setattr(toolboxes, "get_values", lambda: env)
+    monkeypatch.setattr(
+        toolboxes,
+        "ensure_remote_tool_connection",
+        lambda *, connection_name, target, dry_run=False: events.append(
+            ("connection", connection_name)
+        ),
+    )
+    monkeypatch.setattr(
+        toolboxes,
+        "upsert_toolbox",
+        lambda *, spec, project_endpoint, dry_run=False: events.append(
+            ("toolbox", spec.toolbox_name)
+        )
+        or {"department": spec.department},
+    )
+
+    assert toolboxes.configure_toolboxes() == [
+        {"department": "development"},
+        {"department": "human-resources"},
+        {"department": "marketing"},
+    ]
+    assert events == [
+        ("connection", "kb-shared-remote-tool"),
+        ("connection", "kb-development-remote-tool"),
+        ("connection", "kb-human-resources-remote-tool"),
+        ("connection", "kb-marketing-remote-tool"),
+        ("toolbox", "development-knowledge-toolbox"),
+        ("toolbox", "human-resources-knowledge-toolbox"),
+        ("toolbox", "marketing-knowledge-toolbox"),
+    ]

@@ -78,7 +78,7 @@ jobs:
 
       - name: toolboxes
         run: |
-          pwsh -File scripts/configure_toolboxes.ps1 -NoLogo -NoProfile
+          python -m lifecycle_ops.provisioning.toolboxes
 
       - name: deploy
         run: |
