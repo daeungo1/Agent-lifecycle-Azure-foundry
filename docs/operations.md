@@ -25,6 +25,16 @@
   - `relevance`
 - Hourly run cap is conservative and bounded to 20 or less.
 
+The deployment gate and continuous evaluation serve different purposes:
+
+- The deployment gate uses fixed versioned datasets and five evaluators: intent resolution,
+  task adherence, relevance, tool-call accuracy, and groundedness. It blocks promotion.
+- Continuous evaluation samples deployed response traffic and uses the three lower-cost signal
+  evaluators: intent resolution, task adherence, and relevance. It is non-blocking and bounded to
+  20 runs per hour.
+- The postdeploy command registers or updates deterministic evaluation rules. Foundry executes
+  subsequent evaluations when response-completed events occur.
+
 ## Agent 365 Registry Verification
 
 1. Verify `Agent365Observability` service principal exists.

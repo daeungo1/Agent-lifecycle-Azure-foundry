@@ -111,7 +111,6 @@ def test_agentignore_excludes_non_runtime_lifecycle_assets() -> None:
         "docs/operations.md",
         "evals/data/regression.jsonl",
         "knowledge/shared/company-handbook.md",
-        "scripts/verify_environment.ps1",
         "src/lifecycle_ops/provisioning/rbac.py",
         "tests/agent/test_main.py",
     ):

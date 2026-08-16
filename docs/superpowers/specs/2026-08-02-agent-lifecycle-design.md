@@ -41,7 +41,7 @@ The coordinator retains task ownership and invokes specialists as tools. This pa
 
 The three department agents run on the Microsoft Foundry Hosted Agent runtime. Microsoft Agent Framework supplies agent abstractions, `FoundryChatClient`, agents-as-tools orchestration, and automatic OpenTelemetry instrumentation. The Foundry hosting package exposes each department coordinator through the Responses protocol. The platform manages conversation history, streaming, runtime identity, and scale.
 
-`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, three Hosted Agent services, and three toolbox services. Bicep creates one shared Azure AI Search service and one isolated Search service per department. Post-provision hooks create four Foundry IQ knowledge bases and their MCP connections. `azd provision` creates or updates the Azure resources. `azd deploy` publishes toolboxes and immutable department agent versions. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
+`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, three Hosted Agent services, and the deployment hooks. Bicep creates one shared Azure AI Search service and one isolated Search service per department. The `postprovision` hook creates four Foundry IQ knowledge bases, their MCP connections, and three department toolboxes. `azd provision` creates or updates the Azure resources. `azd deploy` publishes immutable department agent versions, after which the `postdeploy` hook applies RBAC and registers continuous evaluation rules. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
 
 Every department Hosted Agent receives a distinct instance identity. Its Azure RBAC grants read access to the shared Search service and only its matching department Search service. Separate Search services provide a real resource boundary rather than relying on connection names as a security control.
 
@@ -55,78 +55,77 @@ Application Insights receives server-side Hosted Agent telemetry. Sensitive prom
 
 ```text
 .
-|-- .foundry/
-|   |-- agent-metadata.yaml
-|   |-- datasets/
-|   |-- evaluators/
-|   |-- results/
-|   `-- suites/
 |-- .github/
 |   `-- workflows/
 |       |-- ci.yml
 |       `-- deploy-evaluate.yml
-|-- .vscode/
-|   |-- launch.json
-|   `-- tasks.json
+|-- deploy/
+|   |-- hooks/
+|   |   |-- postprovision.sh
+|   |   |-- postprovision.ps1
+|   |   |-- postdeploy.sh
+|   |   `-- postdeploy.ps1
+|   |-- infra/
+|   |   |-- main.bicep
+|   |   |-- main.bicepparam
+|   |   `-- modules/
+|   `-- toolboxes/
+|       |-- development.yaml
+|       |-- human-resources.yaml
+|       `-- marketing.yaml
 |-- docs/
 |   |-- architecture/
 |   |   |-- enterprise-agent-lifecycle.excalidraw
 |   |   `-- enterprise-agent-lifecycle.png
+|   |-- tools/
+|   |   `-- render_excalidraw.py
 |   |-- operations.md
 |   `-- superpowers/
 |       `-- specs/
 |-- evals/
+|   |-- eval.yaml
 |   |-- data/
 |   |   |-- development.jsonl
 |   |   |-- human-resources.jsonl
 |   |   |-- marketing.jsonl
 |   |   |-- regression.jsonl
 |   |   `-- security-boundaries.jsonl
-|   `-- validate_dataset.py
 |-- knowledge/
 |   |-- shared/
 |   |-- development/
 |   |-- human-resources/
 |   `-- marketing/
-|-- scripts/
-|   |-- agent365/
-|   |   |-- configure_observability.py
-|   |   `-- verify_registry.py
-|   |-- configure_continuous_evaluation.py
-|   |-- provision_knowledge_bases.py
-|   |-- render-excalidraw.py
-|   |-- set_agent_rbac.py
-|   |-- verify_deployment.py
-|   `-- verify_environment.ps1
 |-- src/
-|   `-- lifecycle_agent/
-|       |-- __init__.py
-|       |-- config.py
-|       |-- main.py
-|       |-- orchestration.py
-|       `-- prompts/
-|           |-- development.md
-|           |-- human-resources.md
-|           `-- marketing.md
+|   |-- lifecycle_agent/
+|   |   |-- host.py
+|   |   |-- settings.py
+|   |   |-- departments.py
+|   |   |-- orchestration.py
+|   |   `-- prompts/
+|   `-- lifecycle_ops/
+|       |-- provisioning/
+|       |-- evaluation/
+|       `-- operations/
 |-- tests/
-|-- toolboxes/
-|   |-- development.yaml
-|   |-- human-resources.yaml
-|   `-- marketing.yaml
+|   |-- agent/
+|   |-- ops/
+|   `-- repo/
+|-- agent.py
 |-- departments.yaml
 |-- .env.example
 |-- .gitignore
 |-- AGENTS.md
 |-- azure.yaml
-|-- eval.yaml
 |-- pyproject.toml
 |-- README.md
-`-- requirements.txt
+|-- requirements.txt
+|-- requirements-ops.txt
+`-- requirements-dev.txt
 ```
 
 ## Build Flow
 
-1. Install the pinned dependencies from `requirements.txt` into a virtual environment.
+1. Install the pinned development dependencies from `requirements-dev.txt` into a virtual environment.
 2. Load the Foundry project endpoint and model deployment name from environment variables.
 3. Select the department configuration from the `DEPARTMENT` environment variable.
 4. Create two specialist agents and expose them as tools to the department coordinator.
@@ -134,7 +133,6 @@ Application Insights receives server-side Hosted Agent telemetry. Sensitive prom
 6. Keep `store` disabled because the Hosted Agent Responses runtime owns conversation history.
 7. Start the Responses server on port 8088 for local development.
 8. Use Ruff and Pytest for fast local validation.
-9. Use the VS Code task and launch configuration for Agent Inspector and debugger attachment.
 
 The implementation uses `DefaultAzureCredential`; it never accepts or stores an Azure API key.
 
@@ -151,7 +149,7 @@ The initial evaluation dimensions are:
 - Groundedness and citation presence.
 - Department authorization boundaries.
 
-`eval.yaml` defines the target agent, seed dataset, evaluators, maximum sample count, and passing threshold. CI runs the same recipe used locally. A failed threshold blocks the release workflow. Evaluation output is persisted as a workflow artifact; generated local results are ignored by Git unless explicitly curated.
+`evals/eval.yaml` defines the target agent, seed dataset, evaluators, maximum sample count, and passing threshold. CI runs the same recipe used locally. A failed threshold blocks the release workflow. Evaluation output is persisted as a workflow artifact; generated local results are ignored by Git unless explicitly curated.
 
 ## Deployment And CI/CD Flow
 
@@ -162,14 +160,13 @@ A merge to `main` or a manual dispatch runs the deployment workflow:
 1. Authenticate to Azure with GitHub OpenID Connect.
 2. Install `azd` and the Foundry extensions.
 3. Restore the named `azd` environment.
-4. Run `azd provision` and `azd deploy` non-interactively.
-5. Create or update the four Foundry IQ knowledge bases and three department toolboxes.
-6. Grant each Hosted Agent identity access to the shared and matching department Search services only.
-7. Verify all three Hosted Agents reach an active state.
-8. Invoke a representative smoke prompt for each department.
-9. Run department, grounding, and cross-department denial evaluations and enforce their thresholds.
-10. Verify that each continuous evaluation rule is enabled.
-11. When Agent 365 prerequisites are present, grant the observability role and verify registry visibility; otherwise emit an actionable skipped result.
+4. Run `azd provision` non-interactively.
+5. The `postprovision` hook creates or updates the four Foundry IQ knowledge bases and three department toolboxes.
+6. Run `azd deploy` non-interactively.
+7. The `postdeploy` hook grants each Hosted Agent identity access to shared plus its matching department Search service and registers continuous evaluation.
+8. Verify all three Hosted Agents reach an active state and invoke a representative smoke prompt for each department.
+9. Run the deployment gate evaluation for department, grounding, and cross-department denial behavior and enforce its thresholds.
+10. When Agent 365 prerequisites are present, verify registry visibility and observability readiness; otherwise emit an actionable skipped result.
 
 The workflow identity receives only the roles required by provisioning, agent deployment, evaluation, and telemetry access. Repository variables hold non-secret identifiers. No long-lived client secret is used.
 

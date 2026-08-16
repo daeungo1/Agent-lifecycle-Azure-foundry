@@ -445,3 +445,44 @@ def test_readme_architecture_and_commands_contract() -> None:
     ]
     for command in expected_commands:
         assert command in content
+
+
+def test_original_design_matches_current_repository_layout_and_flow() -> None:
+    design = _repo_root().joinpath(
+        "docs",
+        "superpowers",
+        "specs",
+        "2026-08-02-agent-lifecycle-design.md",
+    ).read_text(encoding="utf-8")
+
+    assert "|-- deploy/" in design
+    assert "|   |-- hooks/" in design
+    assert "|   `-- toolboxes/" in design
+    assert "|   |-- lifecycle_agent/" in design
+    assert "|   `-- lifecycle_ops/" in design
+    assert "|-- .foundry/" not in design
+    assert "|-- .vscode/" not in design
+    assert "|-- scripts/" not in design
+
+    deployment = design.split("## Deployment And CI/CD Flow", 1)[1].split(
+        "## Operate Flow",
+        1,
+    )[0]
+    provision = deployment.index("Run `azd provision`")
+    postprovision = deployment.index("The `postprovision` hook")
+    deploy = deployment.index("Run `azd deploy`")
+    postdeploy = deployment.index("The `postdeploy` hook")
+    evaluate = deployment.index("Run the deployment gate evaluation")
+    assert provision < postprovision < deploy < postdeploy < evaluate
+
+
+def test_readme_does_not_duplicate_azd_hook_operations() -> None:
+    content = _readme_path().read_text(encoding="utf-8")
+
+    for module in (
+        "lifecycle_ops.provisioning.knowledge_bases",
+        "lifecycle_ops.provisioning.toolboxes",
+        "lifecycle_ops.provisioning.rbac",
+        "lifecycle_ops.provisioning.continuous_eval",
+    ):
+        assert f"python -m {module}" not in content
