@@ -3,7 +3,8 @@ from __future__ import annotations
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework_foundry import FoundryChatClient
 
-from .config import DepartmentConfig, Settings
+from .departments import DepartmentConfig
+from .settings import Settings
 from .toolbox import build_toolbox
 
 

@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from lifecycle_agent.config import DepartmentConfig, Settings, SpecialistConfig
+from lifecycle_agent.departments import DepartmentConfig, SpecialistConfig
 from lifecycle_agent.orchestration import build_department_agent, build_toolbox
+from lifecycle_agent.settings import Settings
 
 
 class _Token:

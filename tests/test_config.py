@@ -1,15 +1,58 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
-from lifecycle_agent.config import Settings, load_departments, select_department
+from lifecycle_agent.departments import load_departments, select_department
+from lifecycle_agent.settings import Settings
 
 
 def test_load_departments_contains_expected_names_and_specialist_counts() -> None:
-    configs = load_departments(Path("departments.yaml"))
+    configs = load_departments()
 
-    assert sorted(configs) == ["development", "human-resources", "marketing"]
+    assert tuple(configs) == ("development", "human-resources", "marketing")
     assert all(len(config.specialists) == 2 for config in configs.values())
+
+
+def test_load_departments_finds_repository_file_outside_repo_cwd(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert tuple(load_departments()) == (
+        "development",
+        "human-resources",
+        "marketing",
+    )
+
+
+def test_load_departments_rejects_empty_roster(tmp_path: Path) -> None:
+    config_path = tmp_path / "departments.yaml"
+    config_path.write_text("departments: []\n", encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="departments.yaml must define at least one department",
+    ):
+        load_departments(config_path)
+
+
+def test_load_departments_rejects_duplicate_names(tmp_path: Path) -> None:
+    config_path = tmp_path / "departments.yaml"
+    department = {
+        "name": "development",
+        "description": "Development",
+        "prompt": "prompt.md",
+        "specialists": [],
+    }
+    config_path.write_text(
+        yaml.safe_dump({"departments": [department, department]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate department: development"):
+        load_departments(config_path)
 
 
 def test_select_department_raises_for_unknown_name() -> None:

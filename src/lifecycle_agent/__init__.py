@@ -1,12 +1,12 @@
 """Lifecycle agent package."""
 
-from .config import (
+from .departments import (
     DepartmentConfig,
-    Settings,
     SpecialistConfig,
     load_departments,
     select_department,
 )
+from .settings import Settings
 
 __all__ = [
     "DepartmentConfig",
