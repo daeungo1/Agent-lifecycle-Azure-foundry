@@ -244,7 +244,7 @@ def test_fallback_evaluation_rule_accepts_full_constructor_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     script_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "src"
         / "lifecycle_ops"
         / "provisioning"

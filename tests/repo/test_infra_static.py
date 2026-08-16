@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def _infra_path(*parts: str) -> Path:
-    return Path(__file__).resolve().parents[1].joinpath("deploy", "infra", *parts)
+    return Path(__file__).resolve().parents[2].joinpath("deploy", "infra", *parts)
 
 
 def _extract_search_services_keys(bicepparam_text: str) -> list[str]:
@@ -105,7 +105,7 @@ def test_container_registry_is_disabled_for_direct_code_deployment() -> None:
 
 def test_ci_compiles_main_bicepparam() -> None:
     ci_workflow = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+        Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
     ).read_text(encoding="utf-8")
 
     assert (

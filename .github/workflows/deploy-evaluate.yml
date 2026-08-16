@@ -53,7 +53,7 @@ jobs:
       - name: Build
         run: |
           python -m ruff check .
-          python -m pytest tests/test_eval_datasets.py -v
+          python -m pytest tests/ops/test_eval_datasets.py -v
 
       - name: Install Foundry extension
         run: |

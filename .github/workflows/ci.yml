@@ -36,10 +36,10 @@ jobs:
         run: python -m pytest -v
 
       - name: Eval validator
-        run: python -m pytest tests/test_eval_datasets.py -v
+        run: python -m pytest tests/ops/test_eval_datasets.py -v
 
       - name: Workflow YAML contract
-        run: python -m pytest tests/test_workflows.py -v
+        run: python -m pytest tests/repo/test_workflows.py -v
 
       - name: Build Bicep
         run: |

@@ -4,7 +4,7 @@ import yaml
 
 
 def test_configured_dataset_paths_resolve_from_repository_root() -> None:
-    repository_root = Path(__file__).resolve().parents[1]
+    repository_root = Path(__file__).resolve().parents[2]
     config = yaml.safe_load(
         repository_root.joinpath("evals", "eval.yaml").read_text(encoding="utf-8")
     )

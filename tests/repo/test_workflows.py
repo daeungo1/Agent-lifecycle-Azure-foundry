@@ -8,7 +8,7 @@ import yaml
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _workflow_path(name: str) -> Path:
@@ -77,7 +77,7 @@ def test_ci_workflow_contract() -> None:
     assert "requirements-agentdev" not in joined
     assert "python -m ruff check ." in joined
     assert "python -m pytest" in joined
-    assert "python -m pytest tests/test_eval_datasets.py" in joined
+    assert "python -m pytest tests/ops/test_eval_datasets.py" in joined
     assert "az bicep build" in joined
 
 

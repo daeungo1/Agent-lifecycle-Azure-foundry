@@ -7,7 +7,7 @@ import yaml
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _load_azure_yaml() -> dict:
@@ -113,7 +113,7 @@ def test_agentignore_excludes_non_runtime_lifecycle_assets() -> None:
         "knowledge/shared/company-handbook.md",
         "scripts/verify_environment.ps1",
         "src/lifecycle_ops/provisioning/rbac.py",
-        "tests/test_main.py",
+        "tests/agent/test_main.py",
     ):
         assert _is_ignored(path, patterns), f"Non-runtime asset must be ignored: {path}"
 
