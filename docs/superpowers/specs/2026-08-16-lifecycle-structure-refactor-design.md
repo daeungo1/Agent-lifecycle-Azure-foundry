@@ -162,7 +162,8 @@ Agent-lifecycle-Azure-foundry/
 |-- departments.yaml            Domain source of truth
 |-- pyproject.toml
 |-- requirements.txt            Runtime dependencies only
-|-- requirements-dev.txt        Ops, test, and documentation dependencies
+|-- requirements-ops.txt        Deployment hook dependencies
+|-- requirements-dev.txt        Test and documentation dependencies
 |-- README.md / AGENTS.md / .agentignore / .env.example / .gitignore
 |
 |-- deploy/                     Build-phase assets
@@ -287,8 +288,11 @@ with one named file at the root, and reduces `sys.path` manipulation from three 
 
 `lifecycle_agent` contains only what runs inside the hosted agent. `lifecycle_ops` contains
 provisioning, evaluation, and operations tooling and is excluded from the agent package through
-`.agentignore`. The split is what allows `requirements.txt` to shrink to runtime dependencies while
-`requirements-dev.txt` carries `pytest`, `ruff`, `debugpy`, `Pillow`, and `httpx`.
+`.agentignore`. The split is what allows `requirements.txt` to shrink to runtime dependencies.
+`requirements-ops.txt` adds deployment-only dependencies such as `httpx`, while
+`requirements-dev.txt` extends the ops environment with `pytest`, `ruff`, `debugpy`, and `Pillow`.
+This three-way split is required because local `azd provision` executes ops hooks without needing
+the full test and documentation toolchain.
 
 ### Hooks as thin shells at `deploy/hooks/`
 
@@ -297,6 +301,7 @@ provisioning, evaluation, and operations tooling and is excluded from the agent 
 ```sh
 #!/bin/sh
 set -eu
+export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 python -m lifecycle_ops.provisioning.knowledge_bases
 python -m lifecycle_ops.provisioning.toolboxes
 ```
@@ -306,13 +311,15 @@ python -m lifecycle_ops.provisioning.toolboxes
 ```sh
 #!/bin/sh
 set -eu
+export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 python -m lifecycle_ops.provisioning.rbac
 python -m lifecycle_ops.provisioning.continuous_eval
 ```
 
-The `.ps1` variants set `$ErrorActionPreference = 'Stop'` and invoke the same two modules in the
-same order. Because the scripts contain no logic, the cost of maintaining both variants is limited
-to keeping the module sequence identical, which `tests/repo/test_hooks_contract.py` enforces.
+The `.ps1` variants set `$ErrorActionPreference = 'Stop'`, add `src` to `PYTHONPATH`, and invoke the
+same two modules in the same order. The scripts contain only import-path setup and module
+invocations, so the cost of maintaining both variants is limited to keeping the module sequence
+identical, which `tests/repo/test_hooks_contract.py` enforces.
 
 `azure.yaml` declares:
 
@@ -371,7 +378,7 @@ subprocess handling and parsing. They consolidate into one wrapper.
 | 1 | A package-internal `entryPoint` breaks relative imports and prevents all three agents from starting | Critical | Root `agent.py` bootstrap with absolute import |
 | 2 | Bicep loop conversion renames `azd` environment outputs and breaks downstream scripts | High | Excluded from scope; `infra/main.bicep` content is moved but not rewritten |
 | 3 | The PowerShell to Python toolbox merge cannot be fully verified without a live Azure environment | Medium | Write a command-sequence equivalence test before deleting the `.ps1`; the Python side already generates `azd` command lists under test |
-| 4 | Moving `eval.yaml` may change how `dataset.local_uri` resolves, producing an empty dataset and a vacuous gate pass | Medium | Add a zero-sample guard to `evaluation/gate.py` so a path error fails loudly instead of passing silently |
+| 4 | Moving `eval.yaml` may change how `dataset.local_uri` resolves | Medium | Keep the root-relative value unchanged and add a repository contract test proving every configured dataset path exists; do not change gate logic |
 | 5 | `azd` hook behavior with the `microsoft.foundry` infra provider is unverified | Medium | CI keeps explicit `azd provision` and `azd deploy` rather than adopting `azd up`; hooks fire on each command independently |
 | 6 | `test_hosted_agent_packaging.py` reads `environmentVariables[1]` by position | Low | Replace with name-based lookup |
 | 7 | `test_hosted_agent_services_use_root_project_and_nested_entrypoints` encodes the current nested layout | Low | Rewrite to assert the shared entry point; rename accordingly |
@@ -407,9 +414,10 @@ into `tests/agent/`, `tests/ops/`, and `tests/repo/`.
 the four hook scripts. Update `azure.yaml` with `infra.path` and the `hooks` section. Add
 `tests/repo/test_hooks_contract.py`. Reduce the deployment workflow accordingly.
 
-**P5 — Evaluation and dependency assets.** Move `eval.yaml` to `evals/`. Add the zero-sample guard
-to `evaluation/gate.py`. Split `requirements.txt` and `requirements-dev.txt`. Move the renderer to
-`docs/tools/`. Update `.agentignore` and CI installation steps.
+**P5 — Evaluation and dependency assets.** Move `eval.yaml` to `evals/`. Add a static contract test
+that resolves configured dataset paths from the repository root. Split `requirements.txt`,
+`requirements-ops.txt`, and `requirements-dev.txt`. Move the renderer to `docs/tools/`. Update
+`.agentignore` and CI installation steps.
 
 **P6 — Documentation.** Correct the deployment order and repository layout in the 2026-08-02 design
 document, remove its unimplemented `.foundry/` and `.vscode/` entries and the unimplemented
@@ -431,8 +439,8 @@ New tests:
   - Every derived name is produced from `departments.yaml`, and no module holds a private roster.
 - `tests/ops/test_toolbox_command_parity.py` (temporary, P3)
   - The Python implementation emits the same `azd` command sequence as the PowerShell script.
-- `tests/ops/test_eval_gate.py`
-  - A results file containing zero evaluated samples fails the gate.
+- `tests/repo/test_eval_config_contract.py`
+  - Every configured dataset path resolves from the repository root and includes JSONL files.
 
 Acceptance criteria:
 
@@ -443,7 +451,8 @@ Acceptance criteria:
    remain: `departments.yaml`, `azure.yaml` service blocks, `deploy/toolboxes/*.yaml`, and
    `deploy/infra/main.bicep`.
 4. `scripts/` and `services/` no longer exist.
-5. `requirements.txt` contains no test, lint, debug, or imaging dependency.
+5. `requirements.txt` contains no deployment, test, lint, debug, or imaging dependency;
+   `requirements-ops.txt` contains no test, lint, debug, or imaging dependency.
 6. `.agentignore` excludes `src/lifecycle_ops/`, `deploy/`, `docs/`, `tests/`, `evals/`, and
    `knowledge/`.
 7. `az bicep build --file deploy/infra/main.bicep` succeeds.
