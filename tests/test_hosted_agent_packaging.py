@@ -38,30 +38,29 @@ def _is_ignored(path: str, patterns: list[str]) -> bool:
     return False
 
 
-def test_hosted_agent_services_use_root_project_and_nested_entrypoints() -> None:
+def test_hosted_agent_services_share_root_entrypoint() -> None:
     services = _load_azure_yaml()["services"]
-    expected = {
-        "development-agent": "services/agents/development/main.py",
-        "human-resources-agent": "services/agents/human-resources/main.py",
-        "marketing-agent": "services/agents/marketing/main.py",
-    }
-    expected_department = {
+    expected_departments = {
         "development-agent": "development",
         "human-resources-agent": "human-resources",
         "marketing-agent": "marketing",
     }
 
-    for service_name, expected_entrypoint in expected.items():
+    for service_name, department in expected_departments.items():
         service = services[service_name]
         assert service["host"] == "azure.ai.agent"
         assert service["project"] == "."
-        assert service["codeConfiguration"]["entryPoint"] == expected_entrypoint
+        assert service["codeConfiguration"]["entryPoint"] == "agent.py"
+        assert service["codeConfiguration"]["dependencyResolution"] == "remote_build"
         env_values = {
             item["name"]: item["value"]
             for item in service.get("environmentVariables", [])
             if isinstance(item, dict) and "name" in item and "value" in item
         }
-        assert env_values.get("DEPARTMENT") == expected_department[service_name]
+        assert env_values["DEPARTMENT"] == department
+        assert env_values["TOOLBOX_ENDPOINT"] == (
+            "${TOOLBOX_ENDPOINT_" + department.replace("-", "_").upper() + "}"
+        )
 
 
 def test_hosted_agent_project_packaging_includes_required_runtime_assets() -> None:
@@ -75,12 +74,17 @@ def test_hosted_agent_project_packaging_includes_required_runtime_assets() -> No
         assert project == ".", "Hosted agent project must be repository root."
 
         entrypoint = service["codeConfiguration"]["entryPoint"]
+        env_values = {
+            item["name"]: item["value"]
+            for item in service.get("environmentVariables", [])
+            if isinstance(item, dict) and "name" in item and "value" in item
+        }
         required_paths = [
             "requirements.txt",
             "departments.yaml",
             "src/lifecycle_agent/__init__.py",
             entrypoint,
-            f"src/lifecycle_agent/prompts/{service['environmentVariables'][1]['value']}.md",
+            f"src/lifecycle_agent/prompts/{env_values['DEPARTMENT']}.md",
         ]
 
         for relative_path in required_paths:

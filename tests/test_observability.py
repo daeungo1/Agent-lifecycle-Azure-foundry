@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from src.lifecycle_agent.observability import configure_observability
+from lifecycle_agent.observability import configure_observability
 
 
 def test_configure_observability_defaults_to_safe_console_mode(
@@ -15,7 +15,7 @@ def test_configure_observability_defaults_to_safe_console_mode(
 
     monkeypatch.delenv("ENABLE_A365_OBSERVABILITY_EXPORTER", raising=False)
     monkeypatch.setattr(
-        "src.lifecycle_agent.observability._load_microsoft_observability_entrypoint",
+        "lifecycle_agent.observability._load_microsoft_observability_entrypoint",
         lambda: fake_use_microsoft_opentelemetry,
     )
 
@@ -38,7 +38,7 @@ def test_configure_observability_enables_a365_only_when_requested(
 
     monkeypatch.setenv("ENABLE_A365_OBSERVABILITY_EXPORTER", "true")
     monkeypatch.setattr(
-        "src.lifecycle_agent.observability._load_microsoft_observability_entrypoint",
+        "lifecycle_agent.observability._load_microsoft_observability_entrypoint",
         lambda: fake_use_microsoft_opentelemetry,
     )
 
@@ -56,7 +56,7 @@ def test_configure_observability_handles_missing_optional_dependency(
 ) -> None:
     monkeypatch.setenv("ENABLE_A365_OBSERVABILITY_EXPORTER", "true")
     monkeypatch.setattr(
-        "src.lifecycle_agent.observability._load_microsoft_observability_entrypoint",
+        "lifecycle_agent.observability._load_microsoft_observability_entrypoint",
         lambda: None,
     )
 

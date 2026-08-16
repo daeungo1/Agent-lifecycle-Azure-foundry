@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from src.lifecycle_agent.config import DepartmentConfig, Settings, SpecialistConfig
-from src.lifecycle_agent.orchestration import build_department_agent, build_toolbox
+from lifecycle_agent.config import DepartmentConfig, Settings, SpecialistConfig
+from lifecycle_agent.orchestration import build_department_agent, build_toolbox
 
 
 class _Token:
@@ -50,7 +50,7 @@ def test_build_toolbox_is_authenticated_and_lazy(monkeypatch) -> None:
             captured.update(kwargs)
 
     monkeypatch.setattr(
-        "src.lifecycle_agent.toolbox.MCPStreamableHTTPTool",
+        "lifecycle_agent.toolbox.MCPStreamableHTTPTool",
         FakeMCPStreamableHTTPTool,
     )
 
@@ -98,12 +98,12 @@ def test_build_department_agent_attaches_two_specialists_and_one_toolbox(monkeyp
         assert credential is not None
         return toolbox_sentinel
 
-    monkeypatch.setattr("src.lifecycle_agent.orchestration.Agent", FakeAgent)
+    monkeypatch.setattr("lifecycle_agent.orchestration.Agent", FakeAgent)
     monkeypatch.setattr(
-        "src.lifecycle_agent.orchestration.FoundryChatClient",
+        "lifecycle_agent.orchestration.FoundryChatClient",
         FakeFoundryChatClient,
     )
-    monkeypatch.setattr("src.lifecycle_agent.orchestration.build_toolbox", fake_build_toolbox)
+    monkeypatch.setattr("lifecycle_agent.orchestration.build_toolbox", fake_build_toolbox)
 
     coordinator = build_department_agent(_department(), _settings(), _Credential())
 
@@ -156,13 +156,13 @@ def test_build_department_agent_requires_exactly_two_specialists(
         def __init__(self, **_kwargs):
             pass
 
-    monkeypatch.setattr("src.lifecycle_agent.orchestration.Agent", FakeAgent)
+    monkeypatch.setattr("lifecycle_agent.orchestration.Agent", FakeAgent)
     monkeypatch.setattr(
-        "src.lifecycle_agent.orchestration.FoundryChatClient",
+        "lifecycle_agent.orchestration.FoundryChatClient",
         FakeFoundryChatClient,
     )
     monkeypatch.setattr(
-        "src.lifecycle_agent.orchestration.build_toolbox",
+        "lifecycle_agent.orchestration.build_toolbox",
         lambda *_args, **_kwargs: object(),
     )
 

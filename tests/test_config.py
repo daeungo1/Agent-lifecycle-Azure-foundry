@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.lifecycle_agent.config import Settings, load_departments, select_department
+from lifecycle_agent.config import Settings, load_departments, select_department
 
 
 def test_load_departments_contains_expected_names_and_specialist_counts() -> None:

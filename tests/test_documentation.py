@@ -434,9 +434,7 @@ def test_readme_architecture_and_commands_contract() -> None:
     expected_commands = [
         "pip install -r requirements.txt",
         "python -m venv .venv",
-        "python services/agents/development/main.py",
-        "python services/agents/human-resources/main.py",
-        "python services/agents/marketing/main.py",
+        "python agent.py",
         "azd provision --no-prompt",
         "python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json",
         "pwsh -File scripts/configure_toolboxes.ps1",

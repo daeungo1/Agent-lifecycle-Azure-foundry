@@ -73,13 +73,13 @@ $env:AZURE_AI_MODEL_DEPLOYMENT_NAME = "gpt-5.4-mini"
 $env:TOOLBOX_ENDPOINT = "https://your-toolbox-endpoint"
 
 $env:DEPARTMENT = "development"
-python services/agents/development/main.py
+python agent.py
 
 $env:DEPARTMENT = "human-resources"
-python services/agents/human-resources/main.py
+python agent.py
 
 $env:DEPARTMENT = "marketing"
-python services/agents/marketing/main.py
+python agent.py
 ```
 
 ## Provision and deploy

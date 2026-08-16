@@ -1,6 +1,6 @@
 import pytest
 
-from src.lifecycle_agent import main as main_module
+from lifecycle_agent import host as main_module
 
 
 class _FakeCredential:
