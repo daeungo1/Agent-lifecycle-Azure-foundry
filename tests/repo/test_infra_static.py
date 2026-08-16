@@ -38,9 +38,7 @@ def _extract_search_services_keys(bicepparam_text: str) -> list[str]:
 
 def test_named_search_endpoint_outputs_do_not_use_numeric_module_index() -> None:
     main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
-    index_ref_pattern = (
-        r"output\s+FOUNDRYIQ_SEARCH_ENDPOINT_[A-Z_]+\s+string\s*=\s*.*\[[0-9]+\]"
-    )
+    index_ref_pattern = r"output\s+FOUNDRYIQ_SEARCH_ENDPOINT_[A-Z_]+\s+string\s*=\s*.*\[[0-9]+\]"
     assert re.search(index_ref_pattern, main_bicep) is None
 
 
@@ -108,10 +106,7 @@ def test_ci_compiles_main_bicepparam() -> None:
         Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
     ).read_text(encoding="utf-8")
 
-    assert (
-        "az bicep build-params --file deploy/infra/main.bicepparam --stdout"
-        in ci_workflow
-    )
+    assert "az bicep build-params --file deploy/infra/main.bicepparam --stdout" in ci_workflow
 
 
 def test_main_bicepparam_pins_foundry_model_deployment() -> None:

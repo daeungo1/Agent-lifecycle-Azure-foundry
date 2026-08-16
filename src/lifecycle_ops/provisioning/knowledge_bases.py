@@ -19,10 +19,7 @@ API_VERSION = "2026-04-01"
 SEMANTIC_CONFIGURATION_NAME = "lifecycle-semantic"
 KNOWLEDGE_BOUNDARIES: dict[str, str] = {
     "shared": "knowledge/shared",
-    **{
-        department: knowledge_path(department).as_posix()
-        for department in department_names()
-    },
+    **{department: knowledge_path(department).as_posix() for department in department_names()},
 }
 
 
@@ -352,16 +349,14 @@ def _put_operation(
         response.raise_for_status()
     except Exception as exc:
         raise RuntimeError(
-            f"Search operation '{operation}' failed for boundary '{boundary}' "
-            f"({method} request)."
+            f"Search operation '{operation}' failed for boundary '{boundary}' ({method} request)."
         ) from exc
 
 
 def _build_mcp_endpoint(search_endpoint: str, knowledge_base_name: str) -> str:
     normalized_endpoint = search_endpoint.rstrip("/")
     return (
-        f"{normalized_endpoint}/knowledgebases/{knowledge_base_name}/mcp"
-        f"?api-version={API_VERSION}"
+        f"{normalized_endpoint}/knowledgebases/{knowledge_base_name}/mcp?api-version={API_VERSION}"
     )
 
 
@@ -377,11 +372,7 @@ def _persist_azd_env_values(values: dict[str, str]) -> None:
 
 def provision_foundry_iq_knowledge(*, dry_run: bool = False) -> dict[str, Any]:
     env_values = _load_active_azd_environment()
-    prefix = (
-        os.getenv("FOUNDRYIQ_NAME_PREFIX")
-        or env_values.get("AZURE_ENV_NAME")
-        or "foundryiq"
-    )
+    prefix = os.getenv("FOUNDRYIQ_NAME_PREFIX") or env_values.get("AZURE_ENV_NAME") or "foundryiq"
 
     endpoints = _resolve_search_endpoints(env_values)
     missing = [boundary for boundary, endpoint in endpoints.items() if not endpoint]

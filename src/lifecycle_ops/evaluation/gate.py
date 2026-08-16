@@ -64,9 +64,7 @@ def _normalize_score(value: float, *, scale_hint: float | None, source: str) -> 
         raise ValueError(f"Score out of range (<0) at {source}: {value}")
 
     if scale_hint is not None and scale_hint not in (1.0, 5.0):
-        raise ValueError(
-            f"Ambiguous or unsupported scale at {source}: max_value={scale_hint}"
-        )
+        raise ValueError(f"Ambiguous or unsupported scale at {source}: max_value={scale_hint}")
 
     if value <= 1.0:
         return value
@@ -74,9 +72,7 @@ def _normalize_score(value: float, *, scale_hint: float | None, source: str) -> 
     if value <= 5.0:
         if scale_hint is None or scale_hint == 5.0:
             return value / 5.0
-        raise ValueError(
-            f"Ambiguous normalization at {source}: value={value}, scale={scale_hint}"
-        )
+        raise ValueError(f"Ambiguous normalization at {source}: value={value}, scale={scale_hint}")
 
     raise ValueError(f"Score out of range (>5) at {source}: {value}")
 
@@ -177,9 +173,7 @@ def _collect_per_sample_scores(
             if not values:
                 continue
             if len(values) != 1:
-                raise ValueError(
-                    f"Conflicting per-sample scores for {metric_name} at {source}"
-                )
+                raise ValueError(f"Conflicting per-sample scores for {metric_name} at {source}")
             collected[metric_name].extend(values)
 
     return collected
@@ -215,9 +209,7 @@ def _resolve_final_scores(
                     "source": "duplicate-equal-aggregates",
                 }
             else:
-                errors.append(
-                    f"Conflicting aggregate scores for {metric}: {numeric_values}"
-                )
+                errors.append(f"Conflicting aggregate scores for {metric}: {numeric_values}")
             continue
 
         if per_sample_values:

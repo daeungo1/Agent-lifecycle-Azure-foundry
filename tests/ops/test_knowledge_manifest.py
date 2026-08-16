@@ -62,10 +62,7 @@ def test_unique_index_source_and_base_names_per_boundary() -> None:
 
 def test_search_endpoint_environment_variable_mapping() -> None:
     assert search_endpoint_env_var_name("shared") == "FOUNDRYIQ_SEARCH_ENDPOINT_SHARED"
-    assert (
-        search_endpoint_env_var_name("development")
-        == "FOUNDRYIQ_SEARCH_ENDPOINT_DEVELOPMENT"
-    )
+    assert search_endpoint_env_var_name("development") == "FOUNDRYIQ_SEARCH_ENDPOINT_DEVELOPMENT"
     assert (
         search_endpoint_env_var_name("human-resources")
         == "FOUNDRYIQ_SEARCH_ENDPOINT_HUMAN_RESOURCES"
@@ -194,8 +191,7 @@ def _expected_mcp_env_map(prefix: str) -> dict[str, str]:
         names = build_artifact_names(prefix=prefix, boundary=boundary)
         key = f"KB_MCP_ENDPOINT_{boundary.upper().replace('-', '_')}"
         value = (
-            f"{endpoint}/knowledgebases/{names.knowledge_base_name}/mcp"
-            f"?api-version={API_VERSION}"
+            f"{endpoint}/knowledgebases/{names.knowledge_base_name}/mcp?api-version={API_VERSION}"
         )
         result[key] = value
     return result

@@ -113,8 +113,7 @@ def evaluate_agent365_observability_readiness(
         return _status(
             status="prerequisite-skipped",
             reason=(
-                "Agent365 observability prerequisites are not fully available "
-                "in this environment."
+                "Agent365 observability prerequisites are not fully available in this environment."
             ),
             runtime_observability="app-insights",
             settings=safe_defaults,

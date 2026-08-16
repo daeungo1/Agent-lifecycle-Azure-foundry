@@ -113,8 +113,8 @@ def test_deploy_workflow_contract() -> None:
     assert "--federated-credential-provider github" in joined
     assert "--tenant-id" in joined
     assert "AZURE_CLIENT_SECRET" not in joined
-    assert "azd env set AZURE_AI_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
-    assert "azd env set FOUNDRY_PROJECT_ENDPOINT \"$FOUNDRY_PROJECT_ENDPOINT\"" in joined
+    assert 'azd env set AZURE_AI_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT"' in joined
+    assert 'azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT"' in joined
 
     assert "azd extension install microsoft.foundry --no-prompt" in joined
     assert "azd extension add microsoft.foundry" not in joined
@@ -149,8 +149,7 @@ def test_deploy_workflow_contract() -> None:
     assert all("--no-prompt" in line for line in smoke_lines)
     assert all("--output raw" in line for line in smoke_lines)
     assert (
-        "python -m lifecycle_ops.operations.deployment_check "
-        "--smoke-artifacts-dir artifacts"
+        "python -m lifecycle_ops.operations.deployment_check --smoke-artifacts-dir artifacts"
     ) in joined
 
     # Stage order enforcement.
@@ -175,8 +174,7 @@ def test_deploy_workflow_contract() -> None:
     assert "python -m lifecycle_ops.operations.agent365.registry" in joined
     assert "A365_PREREQUISITES_CLAIMED" in joined
     assert (
-        "python -m lifecycle_ops.operations.agent365.registry "
-        "> artifacts/agent365-registry.json"
+        "python -m lifecycle_ops.operations.agent365.registry > artifacts/agent365-registry.json"
     ) in joined
 
     # Evaluate must happen before operate regardless of step text casing.
@@ -192,9 +190,7 @@ def test_deploy_workflow_contract() -> None:
 def test_verify_deployment_parses_azd_env_lines() -> None:
     from lifecycle_ops.operations.deployment_check import parse_azd_env_values
 
-    parsed = parse_azd_env_values(
-        'A=1\nB="two"\nC=\'three\'\nINVALID\nEMPTY=\n'
-    )
+    parsed = parse_azd_env_values("A=1\nB=\"two\"\nC='three'\nINVALID\nEMPTY=\n")
     assert parsed == {
         "A": "1",
         "B": "two",
@@ -204,9 +200,11 @@ def test_verify_deployment_parses_azd_env_lines() -> None:
 
 
 def test_verify_deployment_does_not_build_invoke_args() -> None:
-    script_text = _repo_root().joinpath(
-        "src", "lifecycle_ops", "operations", "deployment_check.py"
-    ).read_text(encoding="utf-8")
+    script_text = (
+        _repo_root()
+        .joinpath("src", "lifecycle_ops", "operations", "deployment_check.py")
+        .read_text(encoding="utf-8")
+    )
     assert "agent invoke" not in script_text
 
 
@@ -229,12 +227,14 @@ def test_verify_deployment_fails_when_any_agent_inactive(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(target, "run_command", fake_run)
 
-    exit_code = target.main([
-        "--smoke-artifacts-dir",
-        str(_repo_root().joinpath(".pytest_cache")),
-        "--output-json",
-        str(_repo_root().joinpath(".pytest_cache", "verify-deployment.json")),
-    ])
+    exit_code = target.main(
+        [
+            "--smoke-artifacts-dir",
+            str(_repo_root().joinpath(".pytest_cache")),
+            "--output-json",
+            str(_repo_root().joinpath(".pytest_cache", "verify-deployment.json")),
+        ]
+    )
     assert exit_code != 0
     assert not any(args[:4] == ["azd", "ai", "agent", "invoke"] for args in call_log)
 
@@ -258,12 +258,14 @@ def test_verify_deployment_writes_summary_when_all_agents_active(
         tmp_path.joinpath(f"smoke-{dept}.txt").write_text("non-empty response\n", encoding="utf-8")
 
     output_json = tmp_path.joinpath("verify-summary.json")
-    exit_code = target.main([
-        "--smoke-artifacts-dir",
-        str(tmp_path),
-        "--output-json",
-        str(output_json),
-    ])
+    exit_code = target.main(
+        [
+            "--smoke-artifacts-dir",
+            str(tmp_path),
+            "--output-json",
+            str(output_json),
+        ]
+    )
     assert exit_code == 0
 
     summary = json.loads(output_json.read_text(encoding="utf-8"))
@@ -297,12 +299,14 @@ def test_verify_deployment_requires_smoke_artifacts(
     # smoke-marketing.txt intentionally absent
 
     output_json = tmp_path.joinpath("verify-summary.json")
-    exit_code = target.main([
-        "--smoke-artifacts-dir",
-        str(tmp_path),
-        "--output-json",
-        str(output_json),
-    ])
+    exit_code = target.main(
+        [
+            "--smoke-artifacts-dir",
+            str(tmp_path),
+            "--output-json",
+            str(output_json),
+        ]
+    )
     assert exit_code != 0
 
     summary = json.loads(output_json.read_text(encoding="utf-8"))

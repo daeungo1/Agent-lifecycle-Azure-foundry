@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - covered by unit tests with fal
         filter: EvaluationRuleFilter
         action: ContinuousEvaluationRuleAction
 
+
 from azure.identity import DefaultAzureCredential
 
 from lifecycle_ops.naming import agent_name as derive_agent_name
@@ -195,8 +196,7 @@ def _create_project_client(credential: DefaultAzureCredential) -> Any:
     endpoint = os.getenv("FOUNDRY_PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
     if not endpoint:
         raise RuntimeError(
-            "Set FOUNDRY_PROJECT_ENDPOINT (preferred) or AZURE_AI_PROJECT_ENDPOINT "
-            "before running."
+            "Set FOUNDRY_PROJECT_ENDPOINT (preferred) or AZURE_AI_PROJECT_ENDPOINT before running."
         )
 
     return AIProjectClient(endpoint=endpoint, credential=credential)

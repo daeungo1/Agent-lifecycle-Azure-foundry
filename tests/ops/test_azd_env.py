@@ -6,7 +6,7 @@ from lifecycle_ops import azd_env
 
 
 def test_parse_values_preserves_embedded_equals_and_strips_quotes() -> None:
-    raw = 'FOO="alpha=beta"\nBAR=\'beta value\'\nIGNORED\n'
+    raw = "FOO=\"alpha=beta\"\nBAR='beta value'\nIGNORED\n"
 
     assert azd_env.parse_values(raw) == {
         "FOO": "alpha=beta",

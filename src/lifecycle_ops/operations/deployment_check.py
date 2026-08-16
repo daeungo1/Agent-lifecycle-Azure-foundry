@@ -102,9 +102,7 @@ def verify_agents(*, smoke_artifacts_dir: str) -> dict[str, Any]:
         if smoke_file.exists():
             smoke_output = smoke_file.read_text(encoding="utf-8").strip()
         else:
-            summary["failures"].append(
-                f"Missing smoke artifact for '{agent_name}': {smoke_file}"
-            )
+            summary["failures"].append(f"Missing smoke artifact for '{agent_name}': {smoke_file}")
 
         summary["agents"][agent_name] = {
             "status": status,

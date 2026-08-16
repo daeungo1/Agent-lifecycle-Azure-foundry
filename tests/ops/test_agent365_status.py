@@ -173,8 +173,7 @@ def test_verify_agent365_registry_fails_on_partial_drift() -> None:
     assert "assignment" in status["reason"].lower()
 
 
-def test_verify_agent365_registry_returns_skipped_when_any_agent_prereq_skipped_but_none_failed(
-) -> None:
+def test_registry_skips_when_any_agent_prereq_is_skipped_without_failures() -> None:
     graph_client = _FakeGraphClient(
         service_principal_exists=True,
         role_exists=True,

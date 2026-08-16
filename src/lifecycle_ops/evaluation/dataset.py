@@ -188,8 +188,8 @@ def validate_record(record: dict[str, Any], source: str) -> None:
     if any(not _is_non_empty_string(term) for term in forbidden_terms):
         raise DatasetValidationError(source, "forbidden_terms must only contain non-empty strings")
 
-    is_cross_department_negative = (
-        expected_behavior == "deny" and _query_mentions_other_department(query, department)
+    is_cross_department_negative = expected_behavior == "deny" and _query_mentions_other_department(
+        query, department
     )
     if is_cross_department_negative and not forbidden_terms:
         raise DatasetValidationError(

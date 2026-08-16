@@ -44,9 +44,7 @@ def test_expected_toolbox_connections_include_only_shared_and_own() -> None:
 def test_load_toolbox_connections_uses_declared_yaml_boundary(tmp_path: Path) -> None:
     toolbox_path = tmp_path / "development.yaml"
     toolbox_path.write_text(
-        "connections:\n"
-        "  - name: kb-shared-remote-tool\n"
-        "  - name: kb-development-remote-tool\n",
+        "connections:\n  - name: kb-shared-remote-tool\n  - name: kb-development-remote-tool\n",
         encoding="utf-8",
     )
 
@@ -143,7 +141,9 @@ def test_extract_toolbox_connection_names_recursively() -> None:
 
 def test_extract_toolbox_endpoint_explicit_or_constructed() -> None:
     explicit = {
-        "version": {"details": {"mcpEndpoint": "https://example.invalid/toolboxes/dev/mcp?api-version=v1"}}
+        "version": {
+            "details": {"mcpEndpoint": "https://example.invalid/toolboxes/dev/mcp?api-version=v1"}
+        }
     }
     assert extract_toolbox_endpoint(explicit) == ""
 
@@ -387,10 +387,9 @@ def test_configure_toolboxes_preserves_connection_then_toolbox_order(
     monkeypatch.setattr(
         toolboxes,
         "upsert_toolbox",
-        lambda *, spec, project_endpoint, dry_run=False: events.append(
-            ("toolbox", spec.toolbox_name)
-        )
-        or {"department": spec.department},
+        lambda *, spec, project_endpoint, dry_run=False: (
+            events.append(("toolbox", spec.toolbox_name)) or {"department": spec.department}
+        ),
     )
 
     assert toolboxes.configure_toolboxes() == [

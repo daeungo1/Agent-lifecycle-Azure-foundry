@@ -13,14 +13,16 @@ def _write(path: Path, payload: object) -> None:
 
 
 def _run(config: Path, results: Path, output: Path) -> tuple[int, dict]:
-    code = target.main([
-        "--config",
-        str(config),
-        "--results",
-        str(results),
-        "--output",
-        str(output),
-    ])
+    code = target.main(
+        [
+            "--config",
+            str(config),
+            "--results",
+            str(results),
+            "--output",
+            str(output),
+        ]
+    )
     data = json.loads(output.read_text(encoding="utf-8"))
     return code, data
 
@@ -194,8 +196,7 @@ evaluators:
     assert code != 0
     assert data["status"] == "failure"
     assert any(
-        "out of range" in item.lower() or "ambiguous" in item.lower()
-        for item in data["errors"]
+        "out of range" in item.lower() or "ambiguous" in item.lower() for item in data["errors"]
     )
 
 

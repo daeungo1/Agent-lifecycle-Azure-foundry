@@ -86,9 +86,7 @@ def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
         resource_ids[boundary] = value
 
     if missing:
-        raise ValueError(
-            "Missing required Search resource ID variables: " + ", ".join(missing)
-        )
+        raise ValueError("Missing required Search resource ID variables: " + ", ".join(missing))
 
     return resource_ids
 
@@ -382,11 +380,11 @@ def apply_search_rbac(*, dry_run: bool = False) -> dict[str, Any]:
         "dryRun": dry_run,
     }
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Grant least-privilege Search Index Data Reader RBAC "
-            "to hosted agent identities."
+            "Grant least-privilege Search Index Data Reader RBAC to hosted agent identities."
         )
     )
     parser.add_argument(

@@ -387,29 +387,22 @@ def test_readme_architecture_and_commands_contract() -> None:
     content = readme.read_text(encoding="utf-8")
     assert content.startswith("# ")
     image_embed = (
-        "![Enterprise agent lifecycle workflow]"
-        "(docs/architecture/agent-lifecycle-workflow.svg)"
+        "![Enterprise agent lifecycle workflow](docs/architecture/agent-lifecycle-workflow.svg)"
     )
     resource_embed = (
-        "![Azure resource architecture]"
-        "(docs/architecture/azure-resource-architecture.svg)"
+        "![Azure resource architecture](docs/architecture/azure-resource-architecture.svg)"
     )
     source_link = (
-        "[Legacy Excalidraw sketch]"
-        "(docs/architecture/enterprise-agent-lifecycle.excalidraw)"
+        "[Legacy Excalidraw sketch](docs/architecture/enterprise-agent-lifecycle.excalidraw)"
     )
-    assert (
-        image_embed in content
-    )
+    assert image_embed in content
     assert resource_embed in content
     assert source_link in content
     lifecycle_link = (
-        "[Open full-size lifecycle SVG]"
-        "(docs/architecture/agent-lifecycle-workflow.svg)"
+        "[Open full-size lifecycle SVG](docs/architecture/agent-lifecycle-workflow.svg)"
     )
     resource_link = (
-        "[Open full-size Azure resource SVG]"
-        "(docs/architecture/azure-resource-architecture.svg)"
+        "[Open full-size Azure resource SVG](docs/architecture/azure-resource-architecture.svg)"
     )
     assert lifecycle_link in content
     assert resource_link in content
@@ -450,12 +443,16 @@ def test_readme_architecture_and_commands_contract() -> None:
 
 
 def test_original_design_matches_current_repository_layout_and_flow() -> None:
-    design = _repo_root().joinpath(
-        "docs",
-        "superpowers",
-        "specs",
-        "2026-08-02-agent-lifecycle-design.md",
-    ).read_text(encoding="utf-8")
+    design = (
+        _repo_root()
+        .joinpath(
+            "docs",
+            "superpowers",
+            "specs",
+            "2026-08-02-agent-lifecycle-design.md",
+        )
+        .read_text(encoding="utf-8")
+    )
 
     assert "|-- deploy/" in design
     assert "|   |-- hooks/" in design
