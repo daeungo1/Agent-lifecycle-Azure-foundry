@@ -51,6 +51,16 @@ def test_hooks_preserve_deployment_artifacts_on_both_platforms() -> None:
         assert "artifacts/continuous-evaluation.json" in source
 
 
+def test_windows_hooks_stop_after_each_failed_native_command() -> None:
+    for path, expected_checks in (
+        (Path("deploy/hooks/postprovision.ps1"), 2),
+        (Path("deploy/hooks/postdeploy.ps1"), 2),
+    ):
+        source = path.read_text(encoding="utf-8")
+        assert source.count("$LASTEXITCODE -ne 0") == expected_checks
+        assert source.count("exit $LASTEXITCODE") == expected_checks
+
+
 def test_azure_yaml_declares_existing_platform_hooks() -> None:
     config = yaml.safe_load(Path("azure.yaml").read_text(encoding="utf-8"))
 
