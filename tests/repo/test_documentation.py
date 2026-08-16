@@ -434,6 +434,8 @@ def test_readme_architecture_and_commands_contract() -> None:
     expected_commands = [
         "pip install -r requirements-dev.txt",
         "python -m venv .venv",
+        "pre-commit install",
+        "pre-commit run --all-files",
         "python agent.py",
         "azd provision --no-prompt",
         "azd deploy --no-prompt",

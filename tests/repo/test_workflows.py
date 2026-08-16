@@ -76,6 +76,8 @@ def test_ci_workflow_contract() -> None:
     assert "pip install -r requirements-dev.txt" in joined
     assert "requirements-agentdev" not in joined
     assert "python -m ruff check ." in joined
+    assert "git ls-files -z '*.py'" in joined
+    assert "xargs -0 python -m ruff format --check" in joined
     assert "python -m pytest" in joined
     assert "python -m pytest tests/ops/test_eval_datasets.py" in joined
     assert "az bicep build" in joined

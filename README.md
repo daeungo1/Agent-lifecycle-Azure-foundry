@@ -63,7 +63,12 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
+pre-commit install
+pre-commit run --all-files
 ```
+
+Pre-commit runs Ruff lint and format checks for Python files. Run
+`python -m pytest -v` explicitly; CI also runs the full test suite.
 
 ## Local department run
 

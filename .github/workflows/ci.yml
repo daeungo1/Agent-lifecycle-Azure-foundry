@@ -32,6 +32,9 @@ jobs:
       - name: Ruff
         run: python -m ruff check .
 
+      - name: Ruff format
+        run: git ls-files -z '*.py' | xargs -0 python -m ruff format --check
+
       - name: Pytest
         run: python -m pytest -v
 
