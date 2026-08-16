@@ -134,7 +134,6 @@ def test_deploy_workflow_contract() -> None:
     assert "python -m lifecycle_ops.provisioning.knowledge_bases" not in joined
     assert "python -m lifecycle_ops.provisioning.toolboxes" not in joined
     assert "python -m lifecycle_ops.provisioning.rbac" not in joined
-    assert "python -m lifecycle_ops.provisioning.continuous_eval" not in joined
 
     smoke_lines = [
         line.strip()
@@ -170,6 +169,12 @@ def test_deploy_workflow_contract() -> None:
         "--output artifacts/eval-gate.json"
     )
     assert eval_gate_cmd in joined
+    operate_step = next(step for step in steps if "operate" in str(step.get("name", "")).lower())
+    operate_run = str(operate_step["run"])
+    assert (
+        "python -m lifecycle_ops.provisioning.continuous_eval "
+        "> artifacts/continuous-evaluation.json"
+    ) in operate_run
     assert "python -m lifecycle_ops.operations.agent365.readiness" in joined
     assert "python -m lifecycle_ops.operations.agent365.registry" in joined
     assert "A365_PREREQUISITES_CLAIMED" in joined

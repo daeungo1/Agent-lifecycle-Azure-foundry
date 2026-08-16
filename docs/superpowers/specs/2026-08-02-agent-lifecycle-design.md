@@ -41,7 +41,7 @@ The coordinator retains task ownership and invokes specialists as tools. This pa
 
 The three department agents run on the Microsoft Foundry Hosted Agent runtime. Microsoft Agent Framework supplies agent abstractions, `FoundryChatClient`, agents-as-tools orchestration, and automatic OpenTelemetry instrumentation. The Foundry hosting package exposes each department coordinator through the Responses protocol. The platform manages conversation history, streaming, runtime identity, and scale.
 
-`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, three Hosted Agent services, and the deployment hooks. Bicep creates one shared Azure AI Search service and one isolated Search service per department. The `postprovision` hook creates four Foundry IQ knowledge bases, their MCP connections, and three department toolboxes. `azd provision` creates or updates the Azure resources. `azd deploy` publishes immutable department agent versions, after which the `postdeploy` hook applies RBAC and registers continuous evaluation rules. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
+`azure.yaml` is the deployment source of truth. It defines a Foundry project service, a model deployment, three Hosted Agent services, and the deployment hooks. Bicep creates one shared Azure AI Search service and one isolated Search service per department. The `postprovision` hook creates four Foundry IQ knowledge bases, their MCP connections, and three department toolboxes. `azd provision` creates or updates the Azure resources. `azd deploy` publishes immutable department agent versions, after which the `postdeploy` hook applies RBAC. The deployment gate then runs before the Operate stage registers continuous evaluation rules. The first model candidate is `gpt-5.4-mini`, subject to subscription, region, quota, and catalog validation before provisioning.
 
 Every department Hosted Agent receives a distinct instance identity. Its Azure RBAC grants read access to the shared Search service and only its matching department Search service. Separate Search services provide a real resource boundary rather than relying on connection names as a security control.
 
@@ -163,10 +163,11 @@ A merge to `main` or a manual dispatch runs the deployment workflow:
 4. Run `azd provision` non-interactively.
 5. The `postprovision` hook creates or updates the four Foundry IQ knowledge bases and three department toolboxes.
 6. Run `azd deploy` non-interactively.
-7. The `postdeploy` hook grants each Hosted Agent identity access to shared plus its matching department Search service and registers continuous evaluation.
+7. The `postdeploy` hook grants each Hosted Agent identity access to shared plus its matching department Search service.
 8. Verify all three Hosted Agents reach an active state and invoke a representative smoke prompt for each department.
 9. Run the deployment gate evaluation for department, grounding, and cross-department denial behavior and enforce its thresholds.
-10. When Agent 365 prerequisites are present, verify registry visibility and observability readiness; otherwise emit an actionable skipped result.
+10. After the gate passes, register continuous evaluation rules in the Operate stage.
+11. When Agent 365 prerequisites are present, verify registry visibility and observability readiness; otherwise emit an actionable skipped result.
 
 The workflow identity receives only the roles required by provisioning, agent deployment, evaluation, and telemetry access. Repository variables hold non-secret identifiers. No long-lived client secret is used.
 

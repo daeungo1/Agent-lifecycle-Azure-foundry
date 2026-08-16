@@ -41,6 +41,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 ## Prerequisites
 
 - Python 3.13 runtime target and local Python environment.
+- `uv` installed for Python environment and dependency management.
 - `azd` installed, with Foundry extension support (`azd extension install microsoft.foundry --no-prompt`).
 - Azure subscription with quota for Foundry project and model deployment.
 - Preview and tenant prerequisites for Agent365 governance and Graph-based role operations.
@@ -59,10 +60,10 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 ## Local setup
 
 ```powershell
-python -m venv .venv
+uv --version
+uv venv --python 3.13
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements-dev.txt
+uv pip install --prerelease=allow -r requirements-dev.txt
 pre-commit install
 pre-commit run --all-files
 ```
@@ -97,7 +98,8 @@ azd deploy --no-prompt
 ```
 
 The `postprovision` hook creates knowledge bases and toolboxes. The `postdeploy`
-hook applies agent RBAC and registers continuous evaluation.
+hook applies agent RBAC. Continuous evaluation is enabled only after the
+deployment evaluation gate passes.
 
 ## Evaluate gate
 
@@ -109,6 +111,7 @@ PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml 
 ## Operate controls
 
 ```bash
+PYTHONPATH=src python -m lifecycle_ops.provisioning.continuous_eval
 PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
 PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
 ```

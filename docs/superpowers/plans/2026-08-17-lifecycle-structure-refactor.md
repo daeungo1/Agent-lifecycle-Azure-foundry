@@ -794,7 +794,7 @@ git commit -m "refactor: consolidate toolbox provisioning"
 
 **Interfaces:**
 - `postprovision`: knowledge bases -> toolboxes
-- `postdeploy`: RBAC -> continuous evaluation
+- `postdeploy`: RBAC only
 - Preserves named Bicep outputs and the explicit `azd provision` then `azd deploy` workflow
 
 - [ ] **Step 1: Write hook contract tests before creating hooks**
@@ -898,7 +898,6 @@ python -m lifecycle_ops.provisioning.toolboxes
 set -eu
 export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 python -m lifecycle_ops.provisioning.rbac
-python -m lifecycle_ops.provisioning.continuous_eval
 ```
 
 `postdeploy.ps1`:
@@ -907,7 +906,6 @@ python -m lifecycle_ops.provisioning.continuous_eval
 $ErrorActionPreference = 'Stop'
 $env:PYTHONPATH = Join-Path $PWD 'src'
 python -m lifecycle_ops.provisioning.rbac
-python -m lifecycle_ops.provisioning.continuous_eval
 ```
 
 Mark only `.sh` files executable.
@@ -940,16 +938,16 @@ verification.
 
 - [ ] **Step 6: Simplify the deployment workflow without changing phase order**
 
-Remove manual workflow calls to knowledge bases, toolboxes, RBAC, and continuous evaluation.
-Retain these explicit stages:
+Remove manual workflow calls to knowledge bases, toolboxes, and RBAC. Retain continuous evaluation
+as the first Operate command after the blocking evaluation gate:
 
 ```text
 Build
 azd provision  (postprovision hook runs KB -> toolboxes)
-azd deploy     (postdeploy hook runs RBAC -> continuous evaluation)
+azd deploy     (postdeploy hook runs RBAC)
 three-agent smoke
 Evaluate
-Operate verification
+Operate continuous evaluation + verification
 artifact upload
 ```
 
@@ -1343,9 +1341,8 @@ azd provision --no-prompt
 azd deploy --no-prompt
 ```
 
-Explain that `postprovision` creates knowledge bases then toolboxes, while `postdeploy` applies RBAC
-then registers continuous evaluation. Keep evaluation gate and Operate verification commands
-separate and in the same order as the workflow.
+Explain that `postprovision` creates knowledge bases then toolboxes and `postdeploy` applies RBAC.
+Keep continuous evaluation in Operate after the deployment gate.
 
 - [ ] **Step 3: Correct the 2026-08-02 design document**
 

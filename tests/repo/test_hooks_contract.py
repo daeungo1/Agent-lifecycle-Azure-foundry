@@ -9,7 +9,6 @@ POSTPROVISION_MODULES = [
 ]
 POSTDEPLOY_MODULES = [
     "lifecycle_ops.provisioning.rbac",
-    "lifecycle_ops.provisioning.continuous_eval",
 ]
 
 
@@ -34,6 +33,14 @@ def test_postprovision_does_not_require_deployed_agents() -> None:
     assert "lifecycle_ops.provisioning.continuous_eval" not in modules
 
 
+def test_postdeploy_does_not_enable_operate_controls_before_evaluation() -> None:
+    for path in (
+        Path("deploy/hooks/postdeploy.sh"),
+        Path("deploy/hooks/postdeploy.ps1"),
+    ):
+        assert "lifecycle_ops.provisioning.continuous_eval" not in _invoked_modules(path)
+
+
 def test_hooks_preserve_deployment_artifacts_on_both_platforms() -> None:
     for path in (
         Path("deploy/hooks/postprovision.sh"),
@@ -48,13 +55,12 @@ def test_hooks_preserve_deployment_artifacts_on_both_platforms() -> None:
     ):
         source = path.read_text(encoding="utf-8")
         assert "artifacts/rbac.json" in source
-        assert "artifacts/continuous-evaluation.json" in source
 
 
 def test_windows_hooks_stop_after_each_failed_native_command() -> None:
     for path, expected_checks in (
         (Path("deploy/hooks/postprovision.ps1"), 2),
-        (Path("deploy/hooks/postdeploy.ps1"), 2),
+        (Path("deploy/hooks/postdeploy.ps1"), 1),
     ):
         source = path.read_text(encoding="utf-8")
         assert source.count("$LASTEXITCODE -ne 0") == expected_checks

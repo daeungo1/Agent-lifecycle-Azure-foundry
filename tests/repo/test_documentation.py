@@ -425,8 +425,9 @@ def test_readme_architecture_and_commands_contract() -> None:
         assert phrase in content
 
     expected_commands = [
-        "pip install -r requirements-dev.txt",
-        "python -m venv .venv",
+        "uv --version",
+        "uv venv --python 3.13",
+        "uv pip install --prerelease=allow -r requirements-dev.txt",
         "pre-commit install",
         "pre-commit run --all-files",
         "python agent.py",
@@ -434,6 +435,7 @@ def test_readme_architecture_and_commands_contract() -> None:
         "azd deploy --no-prompt",
         "azd ai agent eval run --config evals/eval.yaml --no-prompt --output json",
         "python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml",
+        "python -m lifecycle_ops.provisioning.continuous_eval",
         "python -m lifecycle_ops.operations.agent365.readiness",
         "python -m lifecycle_ops.operations.agent365.registry",
         "azd down --purge --force --no-prompt",
@@ -482,6 +484,5 @@ def test_readme_does_not_duplicate_azd_hook_operations() -> None:
         "lifecycle_ops.provisioning.knowledge_bases",
         "lifecycle_ops.provisioning.toolboxes",
         "lifecycle_ops.provisioning.rbac",
-        "lifecycle_ops.provisioning.continuous_eval",
     ):
         assert f"python -m {module}" not in content

@@ -122,14 +122,18 @@ azd deploy
   produces: three hosted agent managed identities
         |
 set_agent_rbac.py            requires agent identities
-configure_continuous_evaluation.py   requires agent names to exist
+        |
+deployment evaluation gate
+        |
+configure_continuous_evaluation.py   runs only after the gate passes
 ```
 
 Consequences:
 
 - Knowledge bases and toolboxes belong in a `postprovision` hook. They must complete before deploy.
-- RBAC and continuous evaluation cannot run in `postprovision`. The agent identities do not exist
-  yet, so those steps would fail deterministically. They belong in a `postdeploy` hook.
+- RBAC belongs in a `postdeploy` hook because agent identities do not exist before deployment.
+- Continuous evaluation belongs in the workflow's Operate stage after the blocking deployment gate,
+  so rejected deployments do not activate signal- and cost-producing rules.
 
 ## Evaluation Model
 
@@ -290,7 +294,7 @@ with one named file at the root, and reduces `sys.path` manipulation from three 
 provisioning, evaluation, and operations tooling and is excluded from the agent package through
 `.agentignore`. The split is what allows `requirements.txt` to shrink to runtime dependencies.
 `requirements-ops.txt` adds deployment-only dependencies such as `httpx`, while
-`requirements-dev.txt` extends the ops environment with `pytest`, `ruff`, `debugpy`, and `Pillow`.
+`requirements-dev.txt` extends the ops environment with `pytest`, `ruff`, `pre-commit`, and `Pillow`.
 This three-way split is required because local `azd provision` executes ops hooks without needing
 the full test and documentation toolchain.
 
@@ -313,13 +317,12 @@ python -m lifecycle_ops.provisioning.toolboxes
 set -eu
 export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 python -m lifecycle_ops.provisioning.rbac
-python -m lifecycle_ops.provisioning.continuous_eval
 ```
 
-The `.ps1` variants set `$ErrorActionPreference = 'Stop'`, add `src` to `PYTHONPATH`, and invoke the
-same two modules in the same order. The scripts contain only import-path setup and module
-invocations, so the cost of maintaining both variants is limited to keeping the module sequence
-identical, which `tests/repo/test_hooks_contract.py` enforces.
+The `.ps1` variants set `$ErrorActionPreference = 'Stop'`, add `src` to `PYTHONPATH`, invoke the same
+modules in the same order, and propagate every native Python process exit code. The scripts contain
+only import-path setup and module invocations, so the cost of maintaining both variants is limited
+to keeping the module sequence identical, which `tests/repo/test_hooks_contract.py` enforces.
 
 `azure.yaml` declares:
 
@@ -434,6 +437,8 @@ New tests:
   - `postprovision` invokes `knowledge_bases` before `toolboxes`.
   - `postprovision` invokes neither `rbac` nor `continuous_eval`, because agent identities do not
     exist at that point.
+  - `postdeploy` does not invoke `continuous_eval`; the workflow runs it only after the evaluation
+    gate passes.
   - Every hook path named in `azure.yaml` exists on disk.
 - `tests/ops/test_naming.py`
   - Every derived name is produced from `departments.yaml`, and no module holds a private roster.
@@ -456,8 +461,8 @@ Acceptance criteria:
 6. `.agentignore` excludes `src/lifecycle_ops/`, `deploy/`, `docs/`, `tests/`, `evals/`, and
    `knowledge/`.
 7. `az bicep build --file deploy/infra/main.bicep` succeeds.
-8. The deployment workflow contains no manual knowledge-base, toolbox, RBAC, or continuous
-   evaluation step; those run through hooks.
+8. The deployment workflow contains no manual knowledge-base, toolbox, or RBAC step; those run
+   through hooks. Continuous evaluation runs explicitly in Operate after the deployment gate.
 9. The 2026-08-02 design document describes the actual deployment order and the actual layout.
 
 Deferred verification: a live `azd provision` and `azd deploy` against an Azure environment

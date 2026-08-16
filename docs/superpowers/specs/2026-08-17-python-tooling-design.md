@@ -38,6 +38,7 @@ References:
 ## Pre-commit Configuration
 
 Add `pre-commit` as a pinned development dependency in `requirements-dev.txt`.
+Document `uv` as a host prerequisite because the local hooks execute it directly.
 
 Create `.pre-commit-config.yaml` with two local hooks:
 

@@ -106,6 +106,7 @@ jobs:
 
       - name: Operate
         run: |
+          python -m lifecycle_ops.provisioning.continuous_eval > artifacts/continuous-evaluation.json
           python -m lifecycle_ops.operations.agent365.readiness > artifacts/agent365-observability.json
           if [ "${A365_PREREQUISITES_CLAIMED:-false}" = "true" ]; then
             python -m lifecycle_ops.operations.agent365.registry --prerequisites-claimed > artifacts/agent365-registry.json
