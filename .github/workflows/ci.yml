@@ -40,5 +40,5 @@ jobs:
 
       - name: Build Bicep
         run: |
-          az bicep build --file infra/main.bicep
-          az bicep build-params --file infra/main.bicepparam --stdout > /dev/null
+          az bicep build --file deploy/infra/main.bicep
+          az bicep build-params --file deploy/infra/main.bicepparam --stdout > /dev/null

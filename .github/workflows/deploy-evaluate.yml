@@ -72,21 +72,9 @@ jobs:
           mkdir -p artifacts
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd provision --no-prompt
 
-      - name: knowledge bases
-        run: |
-          python -m lifecycle_ops.provisioning.knowledge_bases --output artifacts/knowledge-bases.json
-
-      - name: toolboxes
-        run: |
-          python -m lifecycle_ops.provisioning.toolboxes
-
       - name: deploy
         run: |
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd deploy --no-prompt
-
-      - name: RBAC
-        run: |
-          python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json
 
       - name: three-agent smoke
         run: |
@@ -115,7 +103,6 @@ jobs:
 
       - name: Operate
         run: |
-          python -m lifecycle_ops.provisioning.continuous_eval > artifacts/continuous-evaluation.json
           python -m lifecycle_ops.operations.agent365.readiness > artifacts/agent365-observability.json
           if [ "${A365_PREREQUISITES_CLAIMED:-false}" = "true" ]; then
             python -m lifecycle_ops.operations.agent365.registry --prerequisites-claimed > artifacts/agent365-registry.json

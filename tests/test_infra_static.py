@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def _infra_path(*parts: str) -> Path:
-    return Path(__file__).resolve().parents[1].joinpath("infra", *parts)
+    return Path(__file__).resolve().parents[1].joinpath("deploy", "infra", *parts)
 
 
 def _extract_search_services_keys(bicepparam_text: str) -> list[str]:
@@ -108,7 +108,10 @@ def test_ci_compiles_main_bicepparam() -> None:
         Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     ).read_text(encoding="utf-8")
 
-    assert "az bicep build-params --file infra/main.bicepparam --stdout" in ci_workflow
+    assert (
+        "az bicep build-params --file deploy/infra/main.bicepparam --stdout"
+        in ci_workflow
+    )
 
 
 def test_main_bicepparam_pins_foundry_model_deployment() -> None:

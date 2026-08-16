@@ -86,13 +86,13 @@ python agent.py
 
 ```bash
 azd extension install microsoft.foundry --no-prompt
-azd provision --no-prompt
 mkdir -p artifacts
-PYTHONPATH=src python -m lifecycle_ops.provisioning.knowledge_bases --output artifacts/knowledge-bases.json
-PYTHONPATH=src python -m lifecycle_ops.provisioning.toolboxes
+azd provision --no-prompt
 azd deploy --no-prompt
-PYTHONPATH=src python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json
 ```
+
+The `postprovision` hook creates knowledge bases and toolboxes. The `postdeploy`
+hook applies agent RBAC and registers continuous evaluation.
 
 ## Evaluate gate
 
@@ -104,7 +104,6 @@ PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config eval.yaml --resu
 ## Operate controls
 
 ```bash
-PYTHONPATH=src python -m lifecycle_ops.provisioning.continuous_eval
 PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
 PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
 ```

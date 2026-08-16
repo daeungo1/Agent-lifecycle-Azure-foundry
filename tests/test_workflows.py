@@ -126,19 +126,10 @@ def test_deploy_workflow_contract() -> None:
                 continue
             assert "AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd" in stripped
 
-    assert (
-        "python -m lifecycle_ops.provisioning.knowledge_bases "
-        "--output artifacts/knowledge-bases.json"
-        in joined
-    )
-    assert "python -m lifecycle_ops.provisioning.toolboxes" in joined
-    assert "python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json" in joined
-    assert "python -m lifecycle_ops.provisioning.rbac > artifacts/rbac.json" not in joined
-    assert (
-        "python -m lifecycle_ops.provisioning.knowledge_bases "
-        "> artifacts/knowledge-bases.json"
-        not in joined
-    )
+    assert "python -m lifecycle_ops.provisioning.knowledge_bases" not in joined
+    assert "python -m lifecycle_ops.provisioning.toolboxes" not in joined
+    assert "python -m lifecycle_ops.provisioning.rbac" not in joined
+    assert "python -m lifecycle_ops.provisioning.continuous_eval" not in joined
 
     smoke_lines = [
         line.strip()
@@ -160,15 +151,12 @@ def test_deploy_workflow_contract() -> None:
     # Stage order enforcement.
     build_index = _find_step_index(steps, "build")
     provision_index = _find_step_index(steps, "provision")
-    kb_index = _find_step_index(steps, "knowledge")
-    toolbox_index = _find_step_index(steps, "toolbox")
     deploy_index = _find_step_index(steps, "deploy")
-    rbac_index = _find_step_index(steps, "rbac")
     smoke_index = _find_step_index(steps, "smoke")
     evaluate_index = _find_step_index(steps, "evaluate")
     operate_index = _find_step_index(steps, "operate")
-    assert build_index < provision_index < kb_index < toolbox_index < deploy_index
-    assert deploy_index < rbac_index < smoke_index < evaluate_index < operate_index
+    assert build_index < provision_index < deploy_index
+    assert deploy_index < smoke_index < evaluate_index < operate_index
 
     assert "azd ai agent eval run" in joined
     eval_gate_cmd = (
@@ -178,7 +166,6 @@ def test_deploy_workflow_contract() -> None:
         "--output artifacts/eval-gate.json"
     )
     assert eval_gate_cmd in joined
-    assert "python -m lifecycle_ops.provisioning.continuous_eval" in joined
     assert "python -m lifecycle_ops.operations.agent365.readiness" in joined
     assert "python -m lifecycle_ops.operations.agent365.registry" in joined
     assert "A365_PREREQUISITES_CLAIMED" in joined

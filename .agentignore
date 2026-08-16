@@ -3,7 +3,7 @@
 docs/
 tests/
 evals/
-infra/
+deploy/
 knowledge/
 artifacts/
 .superpowers/
@@ -18,4 +18,3 @@ __pycache__/
 .env
 .env.*
 rbac-report.json
-toolboxes/

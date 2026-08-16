@@ -10,7 +10,7 @@ def _repo_root() -> Path:
 
 
 def _toolbox_path(department: str) -> Path:
-    return _repo_root() / "toolboxes" / f"{department}.yaml"
+    return _repo_root() / "deploy" / "toolboxes" / f"{department}.yaml"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -20,7 +20,7 @@ def _load_yaml(path: Path) -> dict:
 def test_department_toolboxes_exist() -> None:
     for department in ["development", "human-resources", "marketing"]:
         assert _toolbox_path(department).exists(), (
-            f"Missing toolbox definition: toolboxes/{department}.yaml"
+            f"Missing toolbox definition: deploy/toolboxes/{department}.yaml"
         )
 
 

@@ -33,7 +33,7 @@ def toolbox_name(department: str) -> str:
 
 def toolbox_file(
     department: str,
-    root: Path = Path("toolboxes"),
+    root: Path = Path("deploy/toolboxes"),
 ) -> Path:
     return root / f"{require_department(department)}.yaml"
 

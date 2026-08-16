@@ -2,7 +2,23 @@ name: enterprise-agent-lifecycle
 
 infra:
   provider: microsoft.foundry
-  path: infra
+  path: deploy/infra
+
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: ./deploy/hooks/postprovision.sh
+    windows:
+      shell: pwsh
+      run: ./deploy/hooks/postprovision.ps1
+  postdeploy:
+    posix:
+      shell: sh
+      run: ./deploy/hooks/postdeploy.sh
+    windows:
+      shell: pwsh
+      run: ./deploy/hooks/postdeploy.ps1
 
 services:
   ai-project:
