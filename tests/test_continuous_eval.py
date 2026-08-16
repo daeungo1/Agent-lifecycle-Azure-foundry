@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.configure_continuous_evaluation import (
+from lifecycle_ops.provisioning.continuous_eval import (
     DEFAULT_MAX_HOURLY_RUNS,
     DEPARTMENT_AGENT_NAMES,
     _create_project_client,
@@ -200,7 +200,7 @@ def test_create_project_client_requires_foundry_project_endpoint(
             created["endpoint"] = endpoint
             created["credential"] = credential
 
-    monkeypatch.setattr("scripts.configure_continuous_evaluation.AIProjectClient", _FakeClient)
+    monkeypatch.setattr("lifecycle_ops.provisioning.continuous_eval.AIProjectClient", _FakeClient)
     credential = object()
 
     _create_project_client(credential)  # type: ignore[arg-type]
@@ -222,7 +222,7 @@ def test_create_project_client_supports_azure_ai_project_endpoint_alias(
             created["endpoint"] = endpoint
             created["credential"] = credential
 
-    monkeypatch.setattr("scripts.configure_continuous_evaluation.AIProjectClient", _FakeClient)
+    monkeypatch.setattr("lifecycle_ops.provisioning.continuous_eval.AIProjectClient", _FakeClient)
 
     _create_project_client(object())  # type: ignore[arg-type]
 
@@ -245,8 +245,10 @@ def test_fallback_evaluation_rule_accepts_full_constructor_fields(
 ) -> None:
     script_path = (
         Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "configure_continuous_evaluation.py"
+        / "src"
+        / "lifecycle_ops"
+        / "provisioning"
+        / "continuous_eval.py"
     )
     original_import = builtins.__import__
 

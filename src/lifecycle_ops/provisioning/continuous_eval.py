@@ -41,6 +41,9 @@ except ModuleNotFoundError:  # pragma: no cover - covered by unit tests with fal
 
 from azure.identity import DefaultAzureCredential
 
+from lifecycle_ops.naming import agent_name as derive_agent_name
+from lifecycle_ops.naming import department_names
+
 DEFAULT_MAX_HOURLY_RUNS = 20
 BUILTIN_EVALUATORS = ["intent_resolution", "task_adherence", "relevance"]
 TESTING_CRITERIA = [
@@ -61,9 +64,7 @@ TESTING_CRITERIA = [
     },
 ]
 DEPARTMENT_AGENT_NAMES = {
-    "development": "development-agent",
-    "human-resources": "human-resources-agent",
-    "marketing": "marketing-agent",
+    department: derive_agent_name(department) for department in department_names()
 }
 
 

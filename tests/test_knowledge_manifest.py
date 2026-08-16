@@ -7,8 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-import scripts.provision_knowledge_bases as pkb
-from scripts.provision_knowledge_bases import (
+import lifecycle_ops.provisioning.knowledge_bases as pkb
+from lifecycle_ops.provisioning.knowledge_bases import (
     API_VERSION,
     KNOWLEDGE_BOUNDARIES,
     build_artifact_names,

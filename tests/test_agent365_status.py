@@ -4,10 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-import scripts.agent365.configure_observability as configure_observability_module
-import scripts.agent365.verify_registry as verify_registry_module
-from scripts.agent365.configure_observability import evaluate_agent365_observability_readiness
-from scripts.agent365.verify_registry import (
+import lifecycle_ops.operations.agent365.readiness as configure_observability_module
+import lifecycle_ops.operations.agent365.registry as verify_registry_module
+from lifecycle_ops.operations.agent365.readiness import (
+    evaluate_agent365_observability_readiness,
+)
+from lifecycle_ops.operations.agent365.registry import (
     AGENT_NAMES,
     verify_agent365_registry_status,
 )

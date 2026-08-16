@@ -29,7 +29,7 @@ DEPARTMENT_ALIASES = {
 
 @lru_cache(maxsize=1)
 def _load_department_config() -> tuple[tuple[str, ...], dict[str, frozenset[str]]]:
-    config_path = Path(__file__).resolve().parent.parent / "departments.yaml"
+    config_path = Path(__file__).resolve().parents[3] / "departments.yaml"
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     departments = payload.get("departments", []) if isinstance(payload, dict) else []
 

@@ -6,24 +6,19 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from lifecycle_ops.azd_env import parse_values
+from lifecycle_ops.naming import agent_name as derive_agent_name
+from lifecycle_ops.naming import department_names
+
 AGENT_SMOKE_PROMPTS = {
-    "development-agent": "development",
-    "human-resources-agent": "human-resources",
-    "marketing-agent": "marketing",
+    derive_agent_name(department): department for department in department_names()
 }
 
 ACTIVE_STATUSES = {"active", "running", "succeeded", "ready"}
 
 
 def parse_azd_env_values(raw_env: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in raw_env.splitlines():
-        line = line.strip()
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
+    return parse_values(raw_env)
 
 
 def run_command(args: list[str], *, capture_json: bool = False) -> Any:

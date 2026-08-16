@@ -7,9 +7,12 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
+from lifecycle_ops.naming import agent_name as derive_agent_name
+from lifecycle_ops.naming import department_names
+
 AGENT365_SERVICE_PRINCIPAL_NAME = "Agent365Observability"
 AGENT365_APP_ROLE_VALUE = "Agent365.Observability.OtelWrite"
-AGENT_NAMES = ["development-agent", "human-resources-agent", "marketing-agent"]
+AGENT_NAMES = [derive_agent_name(department) for department in department_names()]
 
 
 @dataclass

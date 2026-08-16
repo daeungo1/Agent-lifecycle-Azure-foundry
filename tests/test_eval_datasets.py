@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from evals.validate_dataset import (
+from lifecycle_ops.evaluation.dataset import (
     _build_error_summary,
     validate_dataset,
     validate_record,

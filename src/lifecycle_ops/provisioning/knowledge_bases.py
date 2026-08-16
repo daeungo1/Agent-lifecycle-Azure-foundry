@@ -12,13 +12,17 @@ from typing import Any
 import httpx
 from azure.identity import DefaultAzureCredential
 
+from lifecycle_ops.azd_env import parse_values
+from lifecycle_ops.naming import department_names, knowledge_path
+
 API_VERSION = "2026-04-01"
 SEMANTIC_CONFIGURATION_NAME = "lifecycle-semantic"
 KNOWLEDGE_BOUNDARIES: dict[str, str] = {
     "shared": "knowledge/shared",
-    "development": "knowledge/development",
-    "human-resources": "knowledge/human-resources",
-    "marketing": "knowledge/marketing",
+    **{
+        department: knowledge_path(department).as_posix()
+        for department in department_names()
+    },
 }
 
 
@@ -38,7 +42,7 @@ class ArtifactNames:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[3]
 
 
 def _normalize_token(value: str, *, max_length: int = 24) -> str:
@@ -299,15 +303,7 @@ def build_rest_operations(
 
 
 def _parse_azd_env_values(raw_env: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in raw_env.splitlines():
-        line = line.strip()
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        value = value.strip().strip("\"").strip("'")
-        values[key.strip()] = value
-    return values
+    return parse_values(raw_env)
 
 
 def _load_active_azd_environment() -> dict[str, str]:

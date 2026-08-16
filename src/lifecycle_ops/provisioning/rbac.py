@@ -7,25 +7,28 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from lifecycle_ops.azd_env import parse_values
+from lifecycle_ops.naming import agent_name as derive_agent_name
+from lifecycle_ops.naming import (
+    department_names,
+    env_suffix,
+)
+
 ROLE_NAME = "Search Index Data Reader"
 
 DEPARTMENT_BY_AGENT = {
-    "development-agent": "development",
-    "human-resources-agent": "human-resources",
-    "marketing-agent": "marketing",
+    derive_agent_name(department): department for department in department_names()
 }
 
-KNOWN_BOUNDARIES = ["shared", "development", "human-resources", "marketing"]
+KNOWN_BOUNDARIES = ["shared", *department_names()]
 BOUNDARY_TO_ENV_SUFFIX = {
     "shared": "SHARED",
-    "development": "DEVELOPMENT",
-    "human-resources": "HUMAN_RESOURCES",
-    "marketing": "MARKETING",
+    **{department: env_suffix(department) for department in department_names()},
 }
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[3]
 
 
 def search_resource_id_env_var(boundary: str) -> str:
@@ -33,14 +36,7 @@ def search_resource_id_env_var(boundary: str) -> str:
 
 
 def _parse_azd_env_values(raw_env: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in raw_env.splitlines():
-        line = line.strip()
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
+    return parse_values(raw_env)
 
 
 def _load_active_azd_environment() -> dict[str, str]:

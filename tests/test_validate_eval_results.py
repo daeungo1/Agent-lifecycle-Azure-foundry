@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import validate_eval_results as target
+from lifecycle_ops.evaluation import gate as target
 
 
 def _write(path: Path, payload: object) -> None:

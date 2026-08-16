@@ -436,15 +436,16 @@ def test_readme_architecture_and_commands_contract() -> None:
         "python -m venv .venv",
         "python agent.py",
         "azd provision --no-prompt",
-        "python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json",
+        "python -m lifecycle_ops.provisioning.knowledge_bases "
+        "--output artifacts/knowledge-bases.json",
         "pwsh -File scripts/configure_toolboxes.ps1",
         "azd deploy --no-prompt",
-        "python scripts/set_agent_rbac.py --report-path artifacts/rbac.json",
+        "python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json",
         "azd ai agent eval run --config eval.yaml --no-prompt --output json",
-        "python scripts/validate_eval_results.py --config eval.yaml",
-        "python scripts/configure_continuous_evaluation.py",
-        "python scripts/agent365/configure_observability.py",
-        "python scripts/agent365/verify_registry.py",
+        "python -m lifecycle_ops.evaluation.gate --config eval.yaml",
+        "python -m lifecycle_ops.provisioning.continuous_eval",
+        "python -m lifecycle_ops.operations.agent365.readiness",
+        "python -m lifecycle_ops.operations.agent365.registry",
         "azd down --purge --force --no-prompt",
     ]
     for command in expected_commands:

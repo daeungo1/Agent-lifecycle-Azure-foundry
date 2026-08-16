@@ -9,7 +9,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 ## Architecture focus: Build -> Evaluate -> Operate
 
 - Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
-- Evaluate: Evaluation is an explicit gate before operate promotion using `eval.yaml` and `scripts/validate_eval_results.py`.
+- Evaluate: Evaluation is an explicit gate before operate promotion using `eval.yaml` and `lifecycle_ops.evaluation.gate`.
 - Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
 
 ## Azure resource architecture
@@ -30,7 +30,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
   - development
   - human-resources
   - marketing
-- `scripts/set_agent_rbac.py` enforces Entra and RBAC least privilege by granting search reader rights only to shared + same-department boundaries.
+- `lifecycle_ops.provisioning.rbac` enforces Entra and RBAC least privilege by granting search reader rights only to shared + same-department boundaries.
 
 ## Identity, RBAC, and OBO decision
 
@@ -88,25 +88,25 @@ python agent.py
 azd extension install microsoft.foundry --no-prompt
 azd provision --no-prompt
 mkdir -p artifacts
-python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
+PYTHONPATH=src python -m lifecycle_ops.provisioning.knowledge_bases --output artifacts/knowledge-bases.json
 pwsh -File scripts/configure_toolboxes.ps1
 azd deploy --no-prompt
-python scripts/set_agent_rbac.py --report-path artifacts/rbac.json
+PYTHONPATH=src python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json
 ```
 
 ## Evaluate gate
 
 ```bash
 azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
-python scripts/validate_eval_results.py --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 ```
 
 ## Operate controls
 
 ```bash
-python scripts/configure_continuous_evaluation.py
-python scripts/agent365/configure_observability.py
-python scripts/agent365/verify_registry.py
+PYTHONPATH=src python -m lifecycle_ops.provisioning.continuous_eval
+PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
+PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
 ```
 
 ## Teardown

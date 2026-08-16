@@ -127,14 +127,16 @@ def test_deploy_workflow_contract() -> None:
             assert "AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd" in stripped
 
     assert (
-        "python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json"
+        "python -m lifecycle_ops.provisioning.knowledge_bases "
+        "--output artifacts/knowledge-bases.json"
         in joined
     )
     assert "pwsh -File scripts/configure_toolboxes.ps1" in joined
-    assert "python scripts/set_agent_rbac.py --report-path artifacts/rbac.json" in joined
-    assert "python scripts/set_agent_rbac.py > artifacts/rbac.json" not in joined
+    assert "python -m lifecycle_ops.provisioning.rbac --report-path artifacts/rbac.json" in joined
+    assert "python -m lifecycle_ops.provisioning.rbac > artifacts/rbac.json" not in joined
     assert (
-        "python scripts/provision_knowledge_bases.py > artifacts/knowledge-bases.json"
+        "python -m lifecycle_ops.provisioning.knowledge_bases "
+        "> artifacts/knowledge-bases.json"
         not in joined
     )
 
@@ -150,7 +152,10 @@ def test_deploy_workflow_contract() -> None:
     assert any("marketing-agent" in line for line in smoke_lines)
     assert all("--no-prompt" in line for line in smoke_lines)
     assert all("--output raw" in line for line in smoke_lines)
-    assert "python scripts/verify_deployment.py --smoke-artifacts-dir artifacts" in joined
+    assert (
+        "python -m lifecycle_ops.operations.deployment_check "
+        "--smoke-artifacts-dir artifacts"
+    ) in joined
 
     # Stage order enforcement.
     build_index = _find_step_index(steps, "build")
@@ -167,17 +172,20 @@ def test_deploy_workflow_contract() -> None:
 
     assert "azd ai agent eval run" in joined
     eval_gate_cmd = (
-        "python scripts/validate_eval_results.py "
+        "python -m lifecycle_ops.evaluation.gate "
         "--config eval.yaml "
         "--results artifacts/eval-results.json "
         "--output artifacts/eval-gate.json"
     )
     assert eval_gate_cmd in joined
-    assert "python scripts/configure_continuous_evaluation.py" in joined
-    assert "python scripts/agent365/configure_observability.py" in joined
-    assert "python scripts/agent365/verify_registry.py" in joined
+    assert "python -m lifecycle_ops.provisioning.continuous_eval" in joined
+    assert "python -m lifecycle_ops.operations.agent365.readiness" in joined
+    assert "python -m lifecycle_ops.operations.agent365.registry" in joined
     assert "A365_PREREQUISITES_CLAIMED" in joined
-    assert "python scripts/agent365/verify_registry.py > artifacts/agent365-registry.json" in joined
+    assert (
+        "python -m lifecycle_ops.operations.agent365.registry "
+        "> artifacts/agent365-registry.json"
+    ) in joined
 
     # Evaluate must happen before operate regardless of step text casing.
     assert evaluate_index < operate_index
@@ -190,7 +198,7 @@ def test_deploy_workflow_contract() -> None:
 
 
 def test_verify_deployment_parses_azd_env_lines() -> None:
-    from scripts.verify_deployment import parse_azd_env_values
+    from lifecycle_ops.operations.deployment_check import parse_azd_env_values
 
     parsed = parse_azd_env_values(
         'A=1\nB="two"\nC=\'three\'\nINVALID\nEMPTY=\n'
@@ -204,14 +212,14 @@ def test_verify_deployment_parses_azd_env_lines() -> None:
 
 
 def test_verify_deployment_does_not_build_invoke_args() -> None:
-    script_text = _repo_root().joinpath("scripts", "verify_deployment.py").read_text(
-        encoding="utf-8"
-    )
+    script_text = _repo_root().joinpath(
+        "src", "lifecycle_ops", "operations", "deployment_check.py"
+    ).read_text(encoding="utf-8")
     assert "agent invoke" not in script_text
 
 
 def test_verify_deployment_fails_when_any_agent_inactive(monkeypatch: pytest.MonkeyPatch) -> None:
-    from scripts import verify_deployment as target
+    from lifecycle_ops.operations import deployment_check as target
 
     call_log: list[list[str]] = []
 
@@ -243,7 +251,7 @@ def test_verify_deployment_writes_summary_when_all_agents_active(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from scripts import verify_deployment as target
+    from lifecycle_ops.operations import deployment_check as target
 
     def fake_run(args: list[str], *, capture_json: bool = False):
         if args[:4] == ["azd", "env", "get-values", "--no-prompt"]:
@@ -281,7 +289,7 @@ def test_verify_deployment_requires_smoke_artifacts(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from scripts import verify_deployment as target
+    from lifecycle_ops.operations import deployment_check as target
 
     def fake_run(args: list[str], *, capture_json: bool = False):
         if args[:4] == ["azd", "env", "get-values", "--no-prompt"]:

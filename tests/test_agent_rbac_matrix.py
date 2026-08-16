@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import scripts.set_agent_rbac as target
-from scripts.set_agent_rbac import (
+import lifecycle_ops.provisioning.rbac as target
+from lifecycle_ops.provisioning.rbac import (
     DEPARTMENT_BY_AGENT,
     ROLE_NAME,
     _get_project_endpoint,
