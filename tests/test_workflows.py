@@ -66,11 +66,14 @@ def test_ci_workflow_contract() -> None:
     setup_python = next(step for step in steps if step.get("uses") == "actions/setup-python@v5")
     assert setup_python.get("with", {}).get("python-version") == "3.13"
     assert setup_python.get("with", {}).get("cache") == "pip"
-    assert setup_python.get("with", {}).get("cache-dependency-path") == "requirements.txt"
+    cache_paths = setup_python.get("with", {}).get("cache-dependency-path", "")
+    assert "requirements.txt" in cache_paths
+    assert "requirements-ops.txt" in cache_paths
+    assert "requirements-dev.txt" in cache_paths
 
     run_commands = _all_run_commands(workflow)
     joined = "\n".join(run_commands)
-    assert "pip install -r requirements.txt" in joined
+    assert "pip install -r requirements-dev.txt" in joined
     assert "requirements-agentdev" not in joined
     assert "python -m ruff check ." in joined
     assert "python -m pytest" in joined
@@ -161,7 +164,7 @@ def test_deploy_workflow_contract() -> None:
     assert "azd ai agent eval run" in joined
     eval_gate_cmd = (
         "python -m lifecycle_ops.evaluation.gate "
-        "--config eval.yaml "
+        "--config evals/eval.yaml "
         "--results artifacts/eval-results.json "
         "--output artifacts/eval-gate.json"
     )

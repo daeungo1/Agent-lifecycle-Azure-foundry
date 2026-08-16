@@ -101,3 +101,35 @@ def test_agentignore_excludes_local_env_and_azure_state() -> None:
     assert _is_ignored(".env", patterns)
     assert _is_ignored(".env.local", patterns)
     assert _is_ignored(".azure/config.json", patterns)
+
+
+def test_agentignore_excludes_non_runtime_lifecycle_assets() -> None:
+    patterns = _load_agentignore_patterns()
+
+    for path in (
+        "deploy/hooks/postdeploy.sh",
+        "docs/operations.md",
+        "evals/data/regression.jsonl",
+        "knowledge/shared/company-handbook.md",
+        "scripts/verify_environment.ps1",
+        "src/lifecycle_ops/provisioning/rbac.py",
+        "tests/test_main.py",
+    ):
+        assert _is_ignored(path, patterns), f"Non-runtime asset must be ignored: {path}"
+
+
+def test_runtime_requirements_exclude_operations_and_development_tools() -> None:
+    runtime = _repo_root().joinpath("requirements.txt").read_text(encoding="utf-8")
+
+    for package in ("httpx", "python-dotenv", "pytest", "ruff", "debugpy", "Pillow"):
+        assert package.lower() not in runtime.lower()
+
+    operations = _repo_root().joinpath("requirements-ops.txt").read_text(encoding="utf-8")
+    assert "-r requirements.txt" in operations
+    assert "httpx==0.28.1" in operations
+
+    development = _repo_root().joinpath("requirements-dev.txt").read_text(encoding="utf-8")
+    assert "-r requirements-ops.txt" in development
+    for package in ("pytest", "ruff", "Pillow"):
+        assert package.lower() in development.lower()
+    assert "debugpy" not in development.lower()

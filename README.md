@@ -9,7 +9,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 ## Architecture focus: Build -> Evaluate -> Operate
 
 - Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
-- Evaluate: Evaluation is an explicit gate before operate promotion using `eval.yaml` and `lifecycle_ops.evaluation.gate`.
+- Evaluate: Evaluation is an explicit gate before operate promotion using `evals/eval.yaml` and `lifecycle_ops.evaluation.gate`.
 - Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
 
 ## Azure resource architecture
@@ -62,7 +62,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ## Local department run
@@ -97,8 +97,8 @@ hook applies agent RBAC and registers continuous evaluation.
 ## Evaluate gate
 
 ```bash
-azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
-PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
+PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 ```
 
 ## Operate controls

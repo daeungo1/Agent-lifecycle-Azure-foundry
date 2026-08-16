@@ -37,12 +37,15 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-ops.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Setup azd
         uses: Azure/setup-azd@v2
@@ -88,7 +91,7 @@ jobs:
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension list --output json > artifacts/azd-extensions.json
           if AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --help > artifacts/eval-help.txt 2>&1; then
             if grep -q -- "--config" artifacts/eval-help.txt; then
-              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
+              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
             else
               echo "Current evaluation command does not support --config" >&2
               cat artifacts/eval-help.txt
@@ -99,7 +102,7 @@ jobs:
             cat artifacts/eval-help.txt
             exit 1
           fi
-          python -m lifecycle_ops.evaluation.gate --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+          python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 
       - name: Operate
         run: |

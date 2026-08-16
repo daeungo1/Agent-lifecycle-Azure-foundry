@@ -5,6 +5,8 @@ tests/
 evals/
 deploy/
 knowledge/
+scripts/
+src/lifecycle_ops/
 artifacts/
 .superpowers/
 .venv/

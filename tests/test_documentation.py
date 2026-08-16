@@ -242,7 +242,7 @@ def test_architecture_text_within_boxes_contract() -> None:
 
 def test_renderer_multiline_layout_contract() -> None:
     repo_root = _repo_root()
-    script_path = repo_root.joinpath("scripts", "render-excalidraw.py")
+    script_path = repo_root.joinpath("docs", "tools", "render_excalidraw.py")
     assert script_path.exists(), f"Missing renderer script: {script_path}"
 
     spec = importlib.util.spec_from_file_location("render_excalidraw", script_path)
@@ -432,13 +432,13 @@ def test_readme_architecture_and_commands_contract() -> None:
         assert phrase in content
 
     expected_commands = [
-        "pip install -r requirements.txt",
+        "pip install -r requirements-dev.txt",
         "python -m venv .venv",
         "python agent.py",
         "azd provision --no-prompt",
         "azd deploy --no-prompt",
-        "azd ai agent eval run --config eval.yaml --no-prompt --output json",
-        "python -m lifecycle_ops.evaluation.gate --config eval.yaml",
+        "azd ai agent eval run --config evals/eval.yaml --no-prompt --output json",
+        "python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml",
         "python -m lifecycle_ops.operations.agent365.readiness",
         "python -m lifecycle_ops.operations.agent365.registry",
         "azd down --purge --force --no-prompt",
