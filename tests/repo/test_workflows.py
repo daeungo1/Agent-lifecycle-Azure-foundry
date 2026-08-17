@@ -192,6 +192,26 @@ def test_deploy_workflow_contract() -> None:
             assert step.get("with", {}).get("if-no-files-found") == "warn"
 
 
+def test_deploy_workflow_logs_into_azure_cli_with_oidc() -> None:
+    # The postdeploy RBAC hook shells out to `az`, which keeps a credential store
+    # separate from azd, so the workflow must log the Azure CLI in as well.
+    workflow = _load_workflow("deploy-evaluate.yml")
+    steps = _job_steps(workflow, "deploy_evaluate")
+
+    uses = [str(step.get("uses", "")) for step in steps if "uses" in step]
+    assert "azure/login@v2" in uses
+
+    login_step = next(step for step in steps if step.get("uses") == "azure/login@v2")
+    with_values = login_step.get("with", {})
+    assert with_values.get("client-id")
+    assert with_values.get("tenant-id")
+    assert with_values.get("subscription-id")
+    assert "client-secret" not in with_values
+
+    login_index = steps.index(login_step)
+    assert login_index < _find_step_index(steps, "provision")
+
+
 def test_verify_deployment_parses_azd_env_lines() -> None:
     from lifecycle_ops.operations.deployment_check import parse_azd_env_values
 
