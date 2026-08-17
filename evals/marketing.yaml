@@ -1,10 +1,10 @@
-name: development-agent-deployment-eval
+name: marketing-agent-deployment-eval
 
 agent:
-  name: development-agent
+  name: marketing-agent
 
 dataset:
-  local_uri: evals/live/development.jsonl
+  local_uri: evals/live/marketing.jsonl
 
 evaluators:
   - builtin.intent_resolution

@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 
 def _infra_path(*parts: str) -> Path:
     return Path(__file__).resolve().parents[2].joinpath("deploy", "infra", *parts)
@@ -46,6 +48,57 @@ def test_main_bicepparam_uses_exactly_four_keyed_search_boundaries() -> None:
     main_bicepparam = _infra_path("main.bicepparam").read_text(encoding="utf-8")
     keys = _extract_search_services_keys(main_bicepparam)
     assert keys == ["shared", "development", "humanResources", "marketing"]
+
+
+def test_azure_yaml_uses_bicep_provider_for_custom_infrastructure() -> None:
+    azure_yaml = Path(__file__).resolve().parents[2] / "azure.yaml"
+    config = yaml.safe_load(azure_yaml.read_text(encoding="utf-8"))
+
+    assert config["infra"] == {
+        "provider": "bicep",
+        "path": "deploy/infra",
+    }
+
+
+def test_main_bicepparam_reads_azd_environment_context() -> None:
+    main_bicepparam = _infra_path("main.bicepparam").read_text(encoding="utf-8")
+
+    for declaration in (
+        "param location = readEnvironmentVariable('AZURE_LOCATION', 'eastus2')",
+        (
+            "param resourceGroupName = "
+            "readEnvironmentVariable('AZURE_RESOURCE_GROUP', 'provider-managed-rg')"
+        ),
+        (
+            "param foundryProjectName = "
+            "readEnvironmentVariable('AZURE_AI_PROJECT_NAME', 'provider-managed')"
+        ),
+        "param principalId = readEnvironmentVariable('AZURE_PRINCIPAL_ID', '')",
+        "param principalType = readEnvironmentVariable('AZURE_PRINCIPAL_TYPE', 'User')",
+    ):
+        assert declaration in main_bicepparam
+
+
+def test_search_services_support_a_separate_azd_region() -> None:
+    main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
+    main_bicepparam = _infra_path("main.bicepparam").read_text(encoding="utf-8")
+
+    assert "param searchLocation string = location" in main_bicep
+    assert main_bicep.count("location: searchLocation") == 4
+    assert (
+        "param searchLocation = readEnvironmentVariable('AZURE_SEARCH_LOCATION', 'centralus')"
+    ) in main_bicepparam
+
+
+def test_search_service_names_are_unique_per_deployment_environment() -> None:
+    main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
+    main_bicepparam = _infra_path("main.bicepparam").read_text(encoding="utf-8")
+
+    assert (
+        "var searchNameSuffix = uniqueString(subscription().id, resourceGroupName, searchLocation)"
+    ) in main_bicep
+    assert main_bicep.count("-${searchNameSuffix}'") == 4
+    assert "-817" not in main_bicepparam
 
 
 def test_main_bicep_accepts_foundry_provider_parameters() -> None:

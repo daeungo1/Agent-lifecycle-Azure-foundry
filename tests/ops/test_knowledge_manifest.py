@@ -159,6 +159,7 @@ def test_index_payload_includes_semantic_configuration_for_ga_knowledge_sources(
             }
         ],
     }
+    assert "defaultSemanticConfiguration" not in index_payload
 
 
 def test_parse_front_matter_supports_crlf_newlines() -> None:
@@ -307,10 +308,6 @@ def test_operation_failure_stops_before_mcp_endpoint_env_persistence(
     credential = _CredentialWithClose()
     monkeypatch.setattr(pkb, "DefaultAzureCredential", lambda: credential)
 
-    class FailingResponse:
-        def raise_for_status(self) -> None:
-            raise RuntimeError("boom")
-
     class FailingClient:
         def __enter__(self) -> "FailingClient":
             return self
@@ -325,8 +322,16 @@ def test_operation_failure_stops_before_mcp_endpoint_env_persistence(
             headers: dict[str, str],
             json: dict[str, Any],
             timeout: int,
-        ) -> FailingResponse:
-            return FailingResponse()
+        ) -> pkb.httpx.Response:
+            return pkb.httpx.Response(
+                400,
+                request=pkb.httpx.Request(method, url),
+                json={
+                    "error": {
+                        "message": ("The property 'defaultSemanticConfiguration' does not exist.")
+                    }
+                },
+            )
 
     monkeypatch.setattr(pkb.httpx, "Client", lambda: FailingClient())
 
@@ -349,6 +354,7 @@ def test_operation_failure_stops_before_mcp_endpoint_env_persistence(
         pkb.provision_foundry_iq_knowledge(dry_run=False)
 
     message = str(exc_info.value)
+    assert "defaultSemanticConfiguration" in message
     assert "fake-token" not in message
     assert "@search.action" not in message
     assert credential.closed is True

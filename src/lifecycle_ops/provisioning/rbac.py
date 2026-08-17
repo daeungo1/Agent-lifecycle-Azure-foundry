@@ -59,6 +59,27 @@ def _run_json_command(args: list[str]) -> Any:
     return json.loads(result.stdout)
 
 
+def build_agent_show_args(agent_name: str) -> list[str]:
+    return [
+        "azd",
+        "ai",
+        "agent",
+        "show",
+        agent_name,
+        "--output",
+        "json",
+        "--no-prompt",
+    ]
+
+
+def extract_agent_principal_id(payload: dict[str, Any], agent_name: str) -> str:
+    identity = payload.get("instance_identity")
+    principal_id = identity.get("principal_id") if isinstance(identity, dict) else None
+    if not principal_id:
+        raise RuntimeError(f"Missing instance identity principal ID for agent: {agent_name}")
+    return str(principal_id)
+
+
 def _get_project_endpoint(azd_env: dict[str, str]) -> str:
     endpoint = (
         os.getenv("AZURE_AI_PROJECT_ENDPOINT")
@@ -91,62 +112,13 @@ def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
     return resource_ids
 
 
-def _first_attr(obj: Any, names: list[str]) -> Any:
-    for name in names:
-        if hasattr(obj, name):
-            value = getattr(obj, name)
-            if value is not None:
-                return value
-    return None
-
-
-def _iter_agents(client: Any) -> list[Any]:
-    agents_client = getattr(client, "agents", None)
-    if agents_client is None:
-        raise RuntimeError("AIProjectClient.agents is unavailable in this SDK version.")
-
-    for method_name in ["list_agents", "list"]:
-        method = getattr(agents_client, method_name, None)
-        if callable(method):
-            result = method()
-            return list(result)
-
-    raise RuntimeError("Unable to enumerate agents: no list/list_agents method was found.")
-
-
-def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
-    from azure.ai.projects import AIProjectClient
-    from azure.identity import DefaultAzureCredential
-
-    credential = DefaultAzureCredential()
-    try:
-        client = AIProjectClient(endpoint=project_endpoint, credential=credential)
-        all_agents = _iter_agents(client)
-    finally:
-        close = getattr(credential, "close", None)
-        if callable(close):
-            close()
-
+def get_agent_principal_ids(_project_endpoint: str) -> dict[str, str]:
     principal_ids: dict[str, str] = {}
-    for agent in all_agents:
-        name = _first_attr(agent, ["name"])
-        if name not in DEPARTMENT_BY_AGENT:
-            continue
-
-        identity = _first_attr(agent, ["instance_identity", "instanceIdentity", "identity"])
-        principal_id = _first_attr(
-            identity,
-            ["principal_id", "principalId", "object_id", "objectId"],
-        )
-        if principal_id:
-            principal_ids[name] = str(principal_id)
-
-    missing_agents = [name for name in DEPARTMENT_BY_AGENT if name not in principal_ids]
-    if missing_agents:
-        raise RuntimeError(
-            "Missing instance identity principal IDs for deployed agents: "
-            + ", ".join(missing_agents)
-        )
+    for agent_name in DEPARTMENT_BY_AGENT:
+        payload = _run_json_command(build_agent_show_args(agent_name))
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Unable to load deployed agent: {agent_name}")
+        principal_ids[agent_name] = extract_agent_principal_id(payload, agent_name)
 
     return principal_ids
 

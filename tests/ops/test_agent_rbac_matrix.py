@@ -98,6 +98,31 @@ def test_role_assignment_command_builders_include_required_flags() -> None:
     assert "--role" in create_args
 
 
+def test_agent_show_args_and_identity_extraction_match_azd_output() -> None:
+    assert target.build_agent_show_args("development-agent") == [
+        "azd",
+        "ai",
+        "agent",
+        "show",
+        "development-agent",
+        "--output",
+        "json",
+        "--no-prompt",
+    ]
+    payload = {
+        "name": "development-agent",
+        "status": "active",
+        "instance_identity": {
+            "principal_id": "11111111-1111-1111-1111-111111111111",
+            "client_id": "11111111-1111-1111-1111-111111111111",
+        },
+    }
+
+    assert target.extract_agent_principal_id(payload, "development-agent") == (
+        "11111111-1111-1111-1111-111111111111"
+    )
+
+
 def test_get_project_endpoint_prefers_azure_alias(monkeypatch) -> None:
     monkeypatch.setenv("AZURE_AI_PROJECT_ENDPOINT", "https://azure-alias.example")
     monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://foundry.example")
