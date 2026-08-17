@@ -596,3 +596,27 @@ def test_configure_toolboxes_preserves_connection_then_toolbox_order(
         ("toolbox", "human-resources-knowledge-toolbox"),
         ("toolbox", "marketing-knowledge-toolbox"),
     ]
+
+
+def test_run_raw_resolves_the_executable_before_spawning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT, so
+    # spawning 'az' directly raises WinError 2 during toolbox reconciliation.
+    monkeypatch.setattr(
+        toolboxes.shutil,
+        "which",
+        lambda program: rf"C:\tools\{program}.cmd",
+    )
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command, **_kwargs):
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0, "{}", "")
+
+    monkeypatch.setattr(toolboxes.subprocess, "run", fake_run)
+
+    toolboxes._run_raw(["az", "rest", "--method", "get"])
+
+    assert captured["command"][0] == r"C:\tools\az.cmd"
+    assert captured["command"][1:] == ["rest", "--method", "get"]

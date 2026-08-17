@@ -43,14 +43,25 @@ def set_value(name: str, value: str) -> None:
 def resolve_value(name: str, values: Mapping[str, str], *, default: str = "") -> str:
     """Look up an environment value in the process environment, then in ``values``.
 
-    Both sources are matched case-insensitively: azd restores ARM output names with
-    inconsistent casing (``FOUNDRYIQ_SEARCH_ENDPOINT_SHARED`` comes back as
-    ``foundryiQ_SEARCH_ENDPOINT_SHARED``), and ``os.environ`` only ignores case on
-    Windows, so an exact match would fail on Linux runners.
+    An exact name always wins. Only when no source carries the exact spelling does the
+    lookup fall back to a case-insensitive match, because azd restores ARM output names
+    with inconsistent casing (``FOUNDRYIQ_SEARCH_ENDPOINT_SHARED`` comes back as
+    ``foundryiQ_SEARCH_ENDPOINT_SHARED``) and ``os.environ`` only ignores case on Windows.
+
+    Switching infrastructure providers can leave both spellings in one environment, so
+    without the exact-match preference the winner would depend on dictionary order.
     """
+    sources: tuple[Mapping[str, str], ...] = (os.environ, values)
+
+    for source in sources:
+        value = source.get(name)
+        if value:
+            return value
+
     lowered = name.lower()
-    for source in (os.environ, values):
+    for source in sources:
         for key, value in source.items():
             if key.lower() == lowered and value:
                 return value
+
     return default

@@ -1,134 +1,241 @@
 # Enterprise Agent Lifecycle on Azure Foundry
 
-This repository provides an enterprise lifecycle baseline for three department-scoped hosted agents on Azure Foundry, with deterministic Build, Evaluate, and Operate controls, strict knowledge boundaries, and least-privilege identity enforcement.
+Microsoft Foundry Hosted Agents로 **부서별 격리된 엔터프라이즈 에이전트**를 Build → Evaluate → Operate
+순서로 운영하는 참조 구현입니다.
 
-[![Enterprise agent lifecycle workflow](docs/architecture/agent-lifecycle-workflow.svg)](docs/architecture/agent-lifecycle-workflow.svg)
+예시 시나리오는 스마트폰을 제조하고 이동통신 서비스를 함께 운영하는 기업 **한스타테크(HanStar Tech)** 이며,
+개발팀 · 인사팀 · 마케팅팀 세 조직이 각자의 지식만 조회합니다.
 
-[Open full-size lifecycle SVG](docs/architecture/agent-lifecycle-workflow.svg) | [Legacy Excalidraw sketch](docs/architecture/enterprise-agent-lifecycle.excalidraw)
+## 핵심 원칙
 
-## Architecture focus: Build -> Evaluate -> Operate
+| 원칙 | 구현 |
+| --- | --- |
+| 부서 격리 | 각 부서 에이전트는 **공용 + 자기 부서** 지식만 조회. 타 부서 요청은 근거 없음으로 응답 |
+| 최소 권한 | 에이전트 관리 ID에 `Search Index Data Reader`만, 허용 범위(scope)에만 부여 |
+| 자격 증명 비저장 | 관리 ID와 `DefaultAzureCredential`만 사용. 키·토큰을 소스·프롬프트·로그에 두지 않음 |
+| 게이트 우선 | 평가 게이트를 통과해야 Operate 제어가 활성화 |
 
-- Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
-- Evaluate: Evaluation is an explicit gate before operate promotion using the three agent-specific configs under `evals/` and `lifecycle_ops.evaluation.gate`.
-- Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
+---
 
-## Azure resource architecture
+## 아키텍처 1. 라이프사이클 워크플로
 
-[![Azure resource architecture](docs/architecture/azure-resource-architecture.svg)](docs/architecture/azure-resource-architecture.svg)
+Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 제어가 켜집니다.
+
+```mermaid
+flowchart LR
+  subgraph BUILD["1. Build"]
+    B1["azd provision<br/>Foundry · 모델 · Search"]
+    B2["postprovision 훅<br/>App Insights · 지식 베이스 · 툴박스"]
+    B3["azd deploy<br/>부서 에이전트 3개"]
+    B4["postdeploy 훅<br/>부서별 RBAC"]
+    B1 --> B2 --> B3 --> B4
+  end
+
+  subgraph EVAL["2. Evaluate"]
+    E1["스모크 호출<br/>3개 에이전트"]
+    E2["azd ai agent eval run<br/>골든 데이터셋"]
+    E3["배포 게이트<br/>임계값 0.70"]
+    E1 --> E2 --> E3
+  end
+
+  subgraph OPERATE["3. Operate"]
+    O1["연속 평가 규칙<br/>response.completed"]
+    O2["Application Insights<br/>부서별 추적"]
+    O3["Agent365 거버넌스"]
+    O1 --> O2 --> O3
+  end
+
+  BUILD --> EVAL
+  E3 -->|통과| OPERATE
+  E3 -.->|실패, 승격 차단| BUILD
+  O1 -.->|실패 사례를 회귀 데이터셋으로| BUILD
+```
+
+![Enterprise agent lifecycle workflow](docs/architecture/agent-lifecycle-workflow.svg)
+
+[Open full-size lifecycle SVG](docs/architecture/agent-lifecycle-workflow.svg)
+
+---
+
+## 아키텍처 2. 3개 팀 시나리오
+
+각 부서는 coordinator 1개와 specialist 2개로 구성되고, 자기 부서 툴박스를 통해서만 지식에 접근합니다.
+툴박스는 **공용 경계 + 자기 부서 경계** 두 개만 연결하므로 교차 조회가 구조적으로 차단됩니다.
+
+```mermaid
+flowchart LR
+  U["사용자 / 업무 시스템"]
+
+  subgraph DEV["개발팀 에이전트"]
+    DC["coordinator"]
+    DS1["architecture-specialist"]
+    DS2["code-quality-specialist"]
+    DC --- DS1
+    DC --- DS2
+  end
+
+  subgraph HR["인사팀 에이전트"]
+    HC["coordinator"]
+    HS1["policy-specialist"]
+    HS2["onboarding-specialist"]
+    HC --- HS1
+    HC --- HS2
+  end
+
+  subgraph MKT["마케팅팀 에이전트"]
+    MC["coordinator"]
+    MS1["campaign-specialist"]
+    MS2["content-specialist"]
+    MC --- MS1
+    MC --- MS2
+  end
+
+  U --> DC
+  U --> HC
+  U --> MC
+
+  DC --> DTB["개발 툴박스"]
+  HC --> HTB["인사 툴박스"]
+  MC --> MTB["마케팅 툴박스"]
+
+  SHARED[("공용 지식<br/>전사 공통 업무 핸드북")]
+  KDEV[("개발 지식<br/>단말 SW 개발 표준")]
+  KHR[("인사 지식<br/>인사 운영 정책")]
+  KMKT[("마케팅 지식<br/>캠페인 가이드")]
+
+  DTB --> SHARED
+  DTB --> KDEV
+  HTB --> SHARED
+  HTB --> KHR
+  MTB --> SHARED
+  MTB --> KMKT
+
+  DTB -. 차단 .-> KHR
+  MTB -. 차단 .-> KHR
+```
+
+[Legacy Excalidraw sketch](docs/architecture/enterprise-agent-lifecycle.excalidraw)
+
+---
+
+## 아키텍처 3. Azure 리소스
+
+| 리소스 | 역할 |
+| --- | --- |
+| Foundry 계정 · 프로젝트 | Hosted Agent 실행과 모델 배포(`gpt-5.4-mini`) |
+| Azure AI Search × 4 | 공용 1 + 부서 3. **Foundry IQ** 지식 베이스의 보안 경계 |
+| Foundry 툴박스 × 3 | 부서별 MCP 도구 묶음. 연결은 Agentic Identity 사용 |
+| Application Insights + Log Analytics | 에이전트 추적. 프로젝트 연결로 Foundry 포털에 노출 |
+| Entra ID · RBAC | 에이전트 관리 ID별 최소 권한 부여 |
+
+![Azure resource architecture](docs/architecture/azure-resource-architecture.svg)
 
 [Open full-size Azure resource SVG](docs/architecture/azure-resource-architecture.svg)
 
-Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision bindings; dotted paths are external prerequisites or optional hardening that are not active resources in the current baseline. The current deployment uses public endpoints protected by Microsoft Entra ID and Azure RBAC, with local authentication disabled. The target-state boundary identifies Foundry private networking and the additional Search private endpoint work required for a production-isolated deployment.
+---
 
-## Departmental multiagent and boundary model
+## 저장소 구조
 
-- The deployment workflow targets three hosted department agents: development, human-resources, and marketing.
-- Each department agent follows a coordinator + 2 specialist collaboration pattern.
-- Each department gets one dedicated toolbox, plus access to only allowed boundaries.
-- Foundry IQ boundaries are four separate search-backed knowledge bases:
-  - shared
-  - development
-  - human-resources
-  - marketing
-- `lifecycle_ops.provisioning.rbac` enforces Entra and RBAC least privilege by granting search reader rights only to shared + same-department boundaries.
+```text
+agent.py                     Hosted Agent 진입점
+azure.yaml                   azd 서비스·훅 정의 (infra provider: bicep)
+departments.yaml             부서·specialist 정의 (단일 진실 공급원)
+knowledge/                   색인 대상 지식 문서 (공용 + 부서 3개)
+evals/                       평가 설정과 골든 데이터셋
+deploy/infra/                Bicep 템플릿
+deploy/hooks/                azd 라이프사이클 훅
+deploy/toolboxes/            부서별 툴박스 정의
+src/lifecycle_agent/         에이전트 런타임 (coordinator + specialist)
+src/lifecycle_ops/           프로비저닝·평가·운영 자동화
+```
 
-## Identity, RBAC, and OBO decision
-
-- Entra and RBAC are enforced for hosted agents, toolboxes, and search boundaries.
-- The quickstart boundary path is Agentic Identity (`https://search.azure.com`) and does not require user token passthrough.
-- OBO decision: OBO is intentionally reserved for future ACL-aware MCP data sources where delegated caller identity must flow to downstream APIs.
-
-## Prerequisites
-
-- Python 3.13 runtime target and local Python environment.
-- `uv` installed for Python environment and dependency management.
-- `azd` installed, with Foundry extension support (`azd extension install microsoft.foundry --no-prompt`).
-- Azure subscription with quota for Foundry project and model deployment.
-- Azure AI Search capacity in `AZURE_SEARCH_LOCATION` (`centralus` by default).
-- Preview and tenant prerequisites for Agent365 governance and Graph-based role operations.
-- Required environment values (example in `.env.example`):
-  - `DEPARTMENT`
-  - `FOUNDRY_PROJECT_ENDPOINT`
-  - `AZURE_AI_MODEL_DEPLOYMENT_NAME`
-  - `TOOLBOX_ENDPOINT`
-
-## Cost and security notes
-
-- Azure cost warning: this baseline provisions four Basic Search boundaries plus model/agent runtime costs; monitor spend before scale-up.
-- Agent365 may report `prerequisite-skipped` when tenant/license/admin prerequisites are not met; this is an expected conditional state.
-- No secrets policy: do not place static credentials in source, prompts, or tool payloads.
-
-## Local setup
+## 로컬 준비
 
 ```powershell
 uv --version
 uv venv --python 3.13
-.\.venv\Scripts\Activate.ps1
 uv pip install --prerelease=allow -r requirements-dev.txt
 pre-commit install
 pre-commit run --all-files
 ```
 
-Pre-commit runs Ruff lint and format checks for Python files. Run
-`python -m pytest -v` explicitly; CI also runs the full test suite.
+에이전트를 로컬에서 실행하려면 환경 변수를 설정한 뒤 `python agent.py`를 실행합니다.
 
-## Local department run
+| 변수 | 설명 |
+| --- | --- |
+| `DEPARTMENT` | `development` · `human-resources` · `marketing` |
+| `FOUNDRY_PROJECT_ENDPOINT` | Foundry 프로젝트 엔드포인트 |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | 모델 배포 이름 |
+| `TOOLBOX_ENDPOINT` | 부서 툴박스 MCP 엔드포인트 |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | 추적 전송 대상 |
+
+## 1. Build
 
 ```powershell
-$env:FOUNDRY_PROJECT_ENDPOINT = "https://your-foundry-project.services.ai.azure.com/api/projects/your-project"
-$env:AZURE_AI_MODEL_DEPLOYMENT_NAME = "gpt-5.4-mini"
-$env:TOOLBOX_ENDPOINT = "https://your-toolbox-endpoint"
-
-$env:DEPARTMENT = "development"
-python agent.py
-
-$env:DEPARTMENT = "human-resources"
-python agent.py
-
-$env:DEPARTMENT = "marketing"
-python agent.py
-```
-
-## Provision and deploy
-
-```bash
-azd extension install microsoft.foundry --no-prompt
 azd env set AZURE_SEARCH_LOCATION centralus
-mkdir -p artifacts
 azd provision --no-prompt
 azd deploy --no-prompt
 ```
 
-The `postprovision` hook creates knowledge bases and toolboxes. The `postdeploy`
-hook applies agent RBAC. Continuous evaluation is enabled only after the
-deployment evaluation gate passes.
+`postprovision` 훅이 Application Insights, Foundry IQ 지식 베이스, 부서 툴박스를 만들고
+`postdeploy` 훅이 부서별 RBAC를 적용합니다. 훅이 담당하므로 개별 명령을 직접 실행할 필요가 없습니다.
 
-## Evaluate gate
+## 2. Evaluate
 
-```bash
-azd ai agent eval run --config evals/eval.yaml --no-prompt > artifacts/eval-development-run.txt
-azd ai agent eval show --out-file artifacts/eval-development-results.json --no-prompt
-PYTHONPATH=src uv run --no-project --python 3.13 --prerelease=allow \
-  --with-requirements requirements-ops.txt python \
-  -m lifecycle_ops.evaluation.gate \
-  --config evals/eval.yaml \
-  --results artifacts/eval-development-results.json \
-  --output artifacts/eval-development-gate.json
+```powershell
+azd ai agent eval run --config evals/eval.yaml --no-prompt
+azd ai agent eval show --out-file artifacts/eval-development-results.json
+python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-development-results.json --output artifacts/eval-gate.json
 ```
 
-The deployment workflow repeats this sequence for `evals/human-resources.yaml`
-and `evals/marketing.yaml`. All three gates must pass before Operate starts.
+인사팀과 마케팅팀은 `evals/human-resources.yaml`, `evals/marketing.yaml`로 동일하게 실행합니다.
+게이트는 intent resolution · task adherence · relevance · groundedness 네 지표의 통과율을 임계값 `0.70`과
+비교하고, 평가자 오류가 있으면 차단합니다.
 
-## Operate controls
+## 3. Operate
 
-```bash
-PYTHONPATH=src python -m lifecycle_ops.provisioning.continuous_eval
-PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
-PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
+```powershell
+python -m lifecycle_ops.provisioning.continuous_eval
+python -m lifecycle_ops.operations.agent365.readiness
+python -m lifecycle_ops.operations.agent365.registry
 ```
 
-## Teardown
+연속 평가 규칙은 `response.completed` 이벤트로 동작하며 시간당 실행 수를 제한합니다.
+Agent365 단계는 테넌트·라이선스 조건을 만족하지 않으면 `prerequisite-skipped`를 반환하는 정상 상태입니다.
 
-```bash
+## 관측
+
+Foundry 포털의 각 에이전트 **Monitor** 탭에서 추적과 평가 결과를 확인합니다.
+모든 스팬은 `OTEL_SERVICE_NAME`으로 `<부서>-agent`가 지정되어 `cloud_RoleName`으로 구분됩니다.
+
+```kusto
+union dependencies, requests, traces
+| where timestamp > ago(1h)
+| summarize events = count(), lastSeen = max(timestamp) by itemType, cloud_RoleName
+| order by events desc
+```
+
+## 보안
+
+- Entra ID 기반 인증만 사용하고 Search는 로컬 인증을 비활성화합니다.
+- 부서 에이전트는 공용 경계와 자기 부서 경계에만 `Search Index Data Reader`를 가집니다.
+- 사용자 위임 접근이 필요하면 툴박스 OAuth 패스스루(OBO)를 사용합니다. 상세는
+  [docs/identity-and-access.md](docs/identity-and-access.md)를 참고하세요.
+- 정적 자격 증명을 소스·프롬프트·로그·에이전트 캐시에 저장하지 않습니다.
+
+## 비용
+
+Azure cost 주의: 이 구성은 Basic 등급 Search 4개와 모델·에이전트 런타임 비용을 발생시킵니다.
+검증이 끝나면 리소스를 정리하세요.
+
+```powershell
 azd down --purge --force --no-prompt
 ```
+
+## 문서
+
+| 문서 | 내용 |
+| --- | --- |
+| [docs/operations.md](docs/operations.md) | 추적, 연속 평가, 롤백, teardown 런북 |
+| [docs/identity-and-access.md](docs/identity-and-access.md) | 툴박스 권한 경계와 OBO 확장 |
+| [AGENTS.md](AGENTS.md) | 저장소 작업 규칙 |

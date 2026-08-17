@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -352,8 +353,11 @@ def ensure_exact_connection_set(*, toolbox_name: str, expected: set[str], actual
 
 
 def _run_raw(command: list[str]) -> str:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT,
+    # so the program has to be resolved to a real path before spawning.
+    resolved = [shutil.which(command[0]) or command[0], *command[1:]]
     completed = subprocess.run(
-        command,
+        resolved,
         check=True,
         capture_output=True,
         text=True,
