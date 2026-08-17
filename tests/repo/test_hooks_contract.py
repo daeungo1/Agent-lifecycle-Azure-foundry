@@ -81,9 +81,12 @@ def test_posix_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path) 
         encoding="utf-8",
     )
     uv.chmod(0o755)
+    mkdir = bin_dir / "mkdir"
+    mkdir.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    mkdir.chmod(0o755)
     env = {
         **os.environ,
-        "PATH": f"{bin_dir}:/bin:/usr/bin",
+        "PATH": str(bin_dir),
         "UV_LOG": str(uv_log),
     }
 
@@ -128,7 +131,7 @@ def test_windows_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path
     uv.chmod(0o755)
     env = {
         **os.environ,
-        "PATH": f"{bin_dir}:/bin:/usr/bin",
+        "PATH": str(bin_dir),
         "UV_LOG": str(uv_log),
     }
 
