@@ -108,6 +108,7 @@ def test_deploy_workflow_contract() -> None:
 
     run_commands = _all_run_commands(workflow)
     joined = "\n".join(run_commands)
+    job_env = workflow["jobs"]["deploy_evaluate"]["env"]
 
     assert "azd auth login --client-id" in joined
     assert "--federated-credential-provider github" in joined
@@ -115,6 +116,8 @@ def test_deploy_workflow_contract() -> None:
     assert "AZURE_CLIENT_SECRET" not in joined
     assert 'azd env set AZURE_AI_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT"' in joined
     assert 'azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT"' in joined
+    assert job_env["AZURE_SEARCH_LOCATION"] == "${{ vars.AZURE_SEARCH_LOCATION || 'centralus' }}"
+    assert 'azd env set AZURE_SEARCH_LOCATION "$AZURE_SEARCH_LOCATION"' in joined
 
     assert "azd extension install microsoft.foundry --no-prompt" in joined
     assert "azd extension add microsoft.foundry" not in joined

@@ -25,6 +25,7 @@ jobs:
       SUBSCRIPTION_ID: ${{ vars.SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_SEARCH_LOCATION: ${{ vars.AZURE_SEARCH_LOCATION || 'centralus' }}
       FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
       A365_PREREQUISITES_CLAIMED: ${{ vars.A365_PREREQUISITES_CLAIMED }}
       PYTHONPATH: src
@@ -65,6 +66,7 @@ jobs:
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env select "$AZURE_ENV_NAME" --no-prompt || AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SUBSCRIPTION_ID "$SUBSCRIPTION_ID" --no-prompt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_LOCATION "$AZURE_LOCATION" --no-prompt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_SEARCH_LOCATION "$AZURE_SEARCH_LOCATION" --no-prompt
           if [ -n "$FOUNDRY_PROJECT_ENDPOINT" ]; then
             AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set FOUNDRY_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
             AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_AI_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt

@@ -150,9 +150,10 @@ def _collect_metric_aggregates(
     return found
 
 
-def _collect_live_evaluator_errors(
+def _collect_live_validation_errors(
     results: Any,
     required_metrics: list[str],
+    expected_samples: int | None,
 ) -> list[str]:
     if not isinstance(results, dict):
         return []
@@ -161,6 +162,10 @@ def _collect_live_evaluator_errors(
         return []
 
     errors: list[str] = []
+    status = str(results.get("status", "")).lower()
+    if status != "completed":
+        errors.append(f"Live evaluation status must be completed, got: {status or 'missing'}")
+
     for row in criteria_results:
         if not isinstance(row, dict):
             continue
@@ -170,7 +175,16 @@ def _collect_live_evaluator_errors(
         metric_name = _resolve_metric_name(raw_name, required_metrics)
         if metric_name is None:
             continue
+        passed = _to_float(row.get("passed", 0))
+        failed = _to_float(row.get("failed", 0))
         errored = _to_float(row.get("errored", 0))
+        skipped = _to_float(row.get("skipped", 0))
+        evaluated = int(passed + failed + errored + skipped)
+        if expected_samples is not None and evaluated != expected_samples:
+            errors.append(
+                f"Incomplete evaluator coverage for {metric_name}: "
+                f"expected {expected_samples}, got {evaluated}"
+            )
         if errored > 0:
             errors.append(f"Evaluator errors for {metric_name}: {int(errored)}")
     return errors
@@ -276,7 +290,25 @@ def _resolve_final_scores(
     return resolved, errors
 
 
-def _load_config(config_path: Path) -> tuple[list[str], float]:
+def _count_dataset_rows(config_path: Path, raw: dict[str, Any]) -> int | None:
+    dataset = raw.get("dataset")
+    if not isinstance(dataset, dict):
+        return None
+    local_uri = dataset.get("local_uri")
+    if not isinstance(local_uri, str) or not local_uri.strip():
+        return None
+
+    dataset_path = Path(local_uri)
+    if not dataset_path.is_absolute():
+        candidates = (Path.cwd() / dataset_path, config_path.parent / dataset_path)
+        dataset_path = next((path for path in candidates if path.is_file()), candidates[0])
+    if not dataset_path.is_file():
+        raise ValueError(f"Configured evaluation dataset does not exist: {dataset_path}")
+
+    return sum(1 for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip())
+
+
+def _load_config(config_path: Path) -> tuple[list[str], float, int | None]:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     evaluators = raw.get("evaluators")
     if not isinstance(evaluators, list) or not evaluators:
@@ -303,11 +335,11 @@ def _load_config(config_path: Path) -> tuple[list[str], float]:
     if threshold < 0 or threshold > 1:
         raise ValueError("pass_threshold must be between 0 and 1")
 
-    return required_metrics, threshold
+    return required_metrics, threshold, _count_dataset_rows(config_path, raw)
 
 
 def validate_results(*, config_path: Path, results_path: Path) -> dict[str, Any]:
-    required_metrics, threshold = _load_config(config_path)
+    required_metrics, threshold, expected_samples = _load_config(config_path)
     results = json.loads(results_path.read_text(encoding="utf-8"))
 
     aggregate_scores = _collect_metric_aggregates(results, required_metrics)
@@ -317,7 +349,13 @@ def validate_results(*, config_path: Path, results_path: Path) -> dict[str, Any]
         aggregate_scores=aggregate_scores,
         sample_scores=sample_scores,
     )
-    errors.extend(_collect_live_evaluator_errors(results, required_metrics))
+    errors.extend(
+        _collect_live_validation_errors(
+            results,
+            required_metrics,
+            expected_samples,
+        )
+    )
 
     metrics_summary: dict[str, dict[str, Any]] = {}
     for metric in required_metrics:

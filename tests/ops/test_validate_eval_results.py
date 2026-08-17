@@ -279,3 +279,82 @@ evaluators:
     assert data["metrics"]["intent_resolution"]["score"] == pytest.approx(1.0)
     assert data["metrics"]["tool_call_accuracy"]["score"] == pytest.approx(0.0)
     assert any("tool_call_accuracy" in item and "5" in item for item in data["errors"])
+
+
+def test_live_foundry_results_require_completed_status(tmp_path: Path) -> None:
+    config = tmp_path / "eval.yaml"
+    dataset = tmp_path / "live.jsonl"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+    dataset.write_text('{"query":"one"}\n', encoding="utf-8")
+    config.write_text(
+        f"""
+dataset:
+  local_uri: {dataset.as_posix()}
+evaluators:
+  - builtin.relevance
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    _write(
+        results,
+        {
+            "status": "failed",
+            "per_testing_criteria_results": [
+                {
+                    "testing_criteria": "relevance",
+                    "passed": 1,
+                    "failed": 0,
+                    "errored": 0,
+                    "skipped": 0,
+                }
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+
+    assert code != 0
+    assert any("status" in item and "failed" in item for item in data["errors"])
+
+
+def test_live_foundry_results_require_every_dataset_row(tmp_path: Path) -> None:
+    config = tmp_path / "eval.yaml"
+    dataset = tmp_path / "live.jsonl"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+    dataset.write_text(
+        "\n".join(f'{{"query":"{index}"}}' for index in range(8)) + "\n",
+        encoding="utf-8",
+    )
+    config.write_text(
+        f"""
+dataset:
+  local_uri: {dataset.as_posix()}
+evaluators:
+  - builtin.relevance
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    _write(
+        results,
+        {
+            "status": "completed",
+            "per_testing_criteria_results": [
+                {
+                    "testing_criteria": "relevance",
+                    "passed": 5,
+                    "failed": 0,
+                    "errored": 0,
+                    "skipped": 0,
+                }
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+
+    assert code != 0
+    assert any("relevance" in item and "expected 8" in item for item in data["errors"])
