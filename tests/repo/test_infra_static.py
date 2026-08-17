@@ -116,3 +116,50 @@ def test_main_bicepparam_pins_foundry_model_deployment() -> None:
     assert "version: '2026-03-17'" in main_bicepparam
     assert "name: 'GlobalStandard'" in main_bicepparam
     assert "capacity: 10" in main_bicepparam
+
+
+def test_every_agent_receives_the_application_insights_connection_string() -> None:
+    import yaml
+
+    repository_root = Path(__file__).resolve().parents[2]
+    azure_yaml = yaml.safe_load(repository_root.joinpath("azure.yaml").read_text(encoding="utf-8"))
+
+    agents = [
+        name
+        for name, service in azure_yaml["services"].items()
+        if service.get("host") == "azure.ai.agent"
+    ]
+    assert len(agents) == 3
+
+    for name in agents:
+        variables = {
+            item["name"]: item["value"]
+            for item in azure_yaml["services"][name]["environmentVariables"]
+        }
+        assert variables["APPLICATIONINSIGHTS_CONNECTION_STRING"] == (
+            "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+        )
+
+
+def test_observability_module_declares_application_insights_and_workspace() -> None:
+    """Deployed by the postprovision hook, not by `azd provision`.
+
+    The microsoft.foundry provider synthesises its own ARM template containing only
+    the Foundry account, project and model deployment, so resources declared in
+    main.bicep never reach ARM.
+    """
+    module = _infra_path("modules", "observability.bicep")
+    assert module.exists()
+
+    source = module.read_text(encoding="utf-8")
+    assert "Microsoft.OperationalInsights/workspaces@" in source
+    assert "Microsoft.Insights/components@" in source
+    assert "WorkspaceResourceId: logAnalyticsWorkspace.id" in source
+    assert "output connectionString string" in source
+    assert "output resourceId string" in source
+
+
+def test_observability_module_is_not_wired_into_the_unused_provider_template() -> None:
+    main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
+
+    assert "modules/observability.bicep" not in main_bicep

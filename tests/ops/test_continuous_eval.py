@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import lifecycle_ops.provisioning.continuous_eval as target
 from lifecycle_ops.provisioning.continuous_eval import (
     DEFAULT_MAX_HOURLY_RUNS,
     DEPARTMENT_AGENT_NAMES,
@@ -118,7 +119,10 @@ def test_configure_continuous_evaluation_reuses_existing_eval_by_name() -> None:
         assert eval_id.startswith("eval-") or eval_id.startswith("eval-existing")
 
 
-def test_configure_continuous_evaluation_uses_department_filters_and_response_completed() -> None:
+def test_configure_continuous_evaluation_uses_department_filters_and_response_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5.4-mini")
     evals_api = _FakeEvalsApi(existing=[])
     project_client = _FakeProjectClient(openai_client=_FakeOpenAIClient(evals_api=evals_api))
 
@@ -135,16 +139,19 @@ def test_configure_continuous_evaluation_uses_department_filters_and_response_co
                 "type": "azure_ai_evaluator",
                 "name": "intent_resolution",
                 "evaluator_name": "builtin.intent_resolution",
+                "initialization_parameters": {"deployment_name": "gpt-5.4-mini"},
             },
             {
                 "type": "azure_ai_evaluator",
                 "name": "task_adherence",
                 "evaluator_name": "builtin.task_adherence",
+                "initialization_parameters": {"deployment_name": "gpt-5.4-mini"},
             },
             {
                 "type": "azure_ai_evaluator",
                 "name": "relevance",
                 "evaluator_name": "builtin.relevance",
+                "initialization_parameters": {"deployment_name": "gpt-5.4-mini"},
             },
         ]
 
@@ -235,9 +242,36 @@ def test_create_project_client_fails_without_supported_endpoints(
     monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
     monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
     monkeypatch.setenv("AZURE_FOUNDRY_PROJECT_CONNECTION_STRING", "Endpoint=legacy")
+    monkeypatch.setattr(target, "get_values", lambda **_kwargs: {})
 
     with pytest.raises(RuntimeError, match="FOUNDRY_PROJECT_ENDPOINT"):
         _create_project_client(object())  # type: ignore[arg-type]
+
+
+def test_create_project_client_falls_back_to_the_azd_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The Operate stage must work from a provisioned azd environment without the
+    # operator exporting the endpoint by hand.
+    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.delenv("AZURE_AI_PROJECT_ENDPOINT", raising=False)
+    monkeypatch.setattr(
+        target,
+        "get_values",
+        lambda **_kwargs: {"FOUNDRY_PROJECT_ENDPOINT": "https://azd.foundry.azure.com"},
+    )
+
+    created: dict[str, object] = {}
+
+    class FakeClient:
+        def __init__(self, *, endpoint, credential):
+            created["endpoint"] = endpoint
+
+    monkeypatch.setattr(target, "AIProjectClient", FakeClient)
+
+    _create_project_client(object())  # type: ignore[arg-type]
+
+    assert created["endpoint"] == "https://azd.foundry.azure.com"
 
 
 def test_fallback_evaluation_rule_accepts_full_constructor_fields(
@@ -279,3 +313,47 @@ def test_fallback_evaluation_rule_accepts_full_constructor_fields(
     assert rule.display_name == "rule name"
     assert rule.description == "rule description"
     assert rule.enabled is True
+
+
+def test_testing_criteria_include_the_judge_model_deployment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Foundry rejects azure_ai_evaluator criteria without a judge model:
+    # "Parameter 'deployment_name' is required by evaluator 'builtin.intent_resolution'".
+    monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5.4-mini")
+
+    criteria = target.build_testing_criteria()
+
+    assert [item["evaluator_name"] for item in criteria] == [
+        "builtin.intent_resolution",
+        "builtin.task_adherence",
+        "builtin.relevance",
+    ]
+    for item in criteria:
+        assert item["type"] == "azure_ai_evaluator"
+        assert item["initialization_parameters"] == {"deployment_name": "gpt-5.4-mini"}
+
+
+def test_testing_criteria_fall_back_to_the_azd_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", raising=False)
+    monkeypatch.setattr(
+        target,
+        "get_values",
+        lambda **_kwargs: {"AZURE_AI_MODEL_DEPLOYMENT_NAME": "gpt-from-azd"},
+    )
+
+    criteria = target.build_testing_criteria()
+
+    assert all(
+        item["initialization_parameters"]["deployment_name"] == "gpt-from-azd" for item in criteria
+    )
+
+
+def test_testing_criteria_require_a_model_deployment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", raising=False)
+    monkeypatch.setattr(target, "get_values", lambda **_kwargs: {})
+
+    with pytest.raises(RuntimeError, match="AZURE_AI_MODEL_DEPLOYMENT_NAME"):
+        target.build_testing_criteria()

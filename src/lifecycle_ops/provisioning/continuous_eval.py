@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -42,28 +41,44 @@ except ModuleNotFoundError:  # pragma: no cover - covered by unit tests with fal
 
 from azure.identity import DefaultAzureCredential
 
+from lifecycle_ops.azd_env import get_values, resolve_value
 from lifecycle_ops.naming import agent_name as derive_agent_name
 from lifecycle_ops.naming import department_names
 
 DEFAULT_MAX_HOURLY_RUNS = 20
 BUILTIN_EVALUATORS = ["intent_resolution", "task_adherence", "relevance"]
-TESTING_CRITERIA = [
-    {
-        "type": "azure_ai_evaluator",
-        "name": "intent_resolution",
-        "evaluator_name": "builtin.intent_resolution",
-    },
-    {
-        "type": "azure_ai_evaluator",
-        "name": "task_adherence",
-        "evaluator_name": "builtin.task_adherence",
-    },
-    {
-        "type": "azure_ai_evaluator",
-        "name": "relevance",
-        "evaluator_name": "builtin.relevance",
-    },
-]
+
+
+def _resolve_model_deployment() -> str:
+    """Resolve the judge model deployment used by the AI-assisted evaluators."""
+    value = resolve_value("AZURE_AI_MODEL_DEPLOYMENT_NAME", {})
+    if value:
+        return value
+    return resolve_value("AZURE_AI_MODEL_DEPLOYMENT_NAME", get_values(ignore_errors=True))
+
+
+def build_testing_criteria() -> list[dict[str, Any]]:
+    """Build the continuous evaluation criteria for the configured judge model.
+
+    Foundry rejects `azure_ai_evaluator` criteria that omit `deployment_name`.
+    """
+    deployment_name = _resolve_model_deployment()
+    if not deployment_name:
+        raise RuntimeError(
+            "Set AZURE_AI_MODEL_DEPLOYMENT_NAME before registering continuous evaluation rules."
+        )
+
+    return [
+        {
+            "type": "azure_ai_evaluator",
+            "name": evaluator,
+            "evaluator_name": f"builtin.{evaluator}",
+            "initialization_parameters": {"deployment_name": deployment_name},
+        }
+        for evaluator in BUILTIN_EVALUATORS
+    ]
+
+
 DEPARTMENT_AGENT_NAMES = {
     department: derive_agent_name(department) for department in department_names()
 }
@@ -136,7 +151,7 @@ def _create_eval_definition(*, openai_client: Any, eval_name: str) -> str:
     created = create_fn(
         name=eval_name,
         data_source_config={"type": "azure_ai_source", "scenario": "responses"},
-        testing_criteria=TESTING_CRITERIA,
+        testing_criteria=build_testing_criteria(),
     )
     eval_id = getattr(created, "id", None)
     if not isinstance(eval_id, str) or not eval_id:
@@ -192,8 +207,26 @@ def configure_continuous_evaluation(
     return configured
 
 
+def _resolve_project_endpoint() -> str:
+    """Prefer the process environment, then fall back to the azd environment."""
+    names = ("FOUNDRY_PROJECT_ENDPOINT", "AZURE_AI_PROJECT_ENDPOINT")
+
+    for name in names:
+        value = resolve_value(name, {})
+        if value:
+            return value
+
+    azd_env = get_values(ignore_errors=True)
+    for name in names:
+        value = resolve_value(name, azd_env)
+        if value:
+            return value
+
+    return ""
+
+
 def _create_project_client(credential: DefaultAzureCredential) -> Any:
-    endpoint = os.getenv("FOUNDRY_PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+    endpoint = _resolve_project_endpoint()
     if not endpoint:
         raise RuntimeError(
             "Set FOUNDRY_PROJECT_ENDPOINT (preferred) or AZURE_AI_PROJECT_ENDPOINT before running."

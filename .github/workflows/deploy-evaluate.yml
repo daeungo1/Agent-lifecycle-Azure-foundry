@@ -88,9 +88,9 @@ jobs:
 
       - name: three-agent smoke
         run: |
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Use your knowledge tools to look up the development knowledge base, then give a brief sprint update. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-development.txt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Use your knowledge tools to look up the human resources knowledge base, then summarize the onboarding checklist. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-human-resources.txt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Use your knowledge tools to look up the marketing knowledge base, then draft a campaign launch summary. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-marketing.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Use your knowledge tools to find your department's engineering standards, then summarize the guidance they provide. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-development.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Use your knowledge tools to find your department's people policy, then summarize the guidance it provides. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-human-resources.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Use your knowledge tools to find your department's brand guidelines, then summarize the guidance they provide. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-marketing.txt
           python -m lifecycle_ops.operations.deployment_check --smoke-artifacts-dir artifacts --output-json artifacts/verify-deployment.json
 
       - name: Evaluate

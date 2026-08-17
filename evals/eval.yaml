@@ -6,12 +6,19 @@ agent:
 dataset:
   local_uri: evals/data
 
+# Evaluator identifiers must carry the "builtin." prefix; the Foundry evals API
+# rejects the bare names with EvaluatorNotFound.
+#
+# builtin.tool_call_accuracy is intentionally absent: ToolCallAccuracyEvaluator
+# requires a tool_definitions input, and `azd ai agent eval run` provides no way to
+# supply it (its azure_ai_target_completions data source maps only {{item.query}}).
+# Including it makes every sample error, which permanently blocks the gate for a
+# non-quality reason. Re-add it once the eval config supports evaluator data mapping.
 evaluators:
-  - intent_resolution
-  - task_adherence
-  - relevance
-  - tool_call_accuracy
-  - groundedness
+  - builtin.intent_resolution
+  - builtin.task_adherence
+  - builtin.relevance
+  - builtin.groundedness
 
 tiers:
   - smoke
@@ -32,6 +39,7 @@ regression:
     - evals/data/security-boundaries.jsonl
 
 options:
+  eval_model: gpt-5.4-mini
   pass_threshold: 0.70
   fail_on_missing_tool_call: true
   require_grounded_citation: true

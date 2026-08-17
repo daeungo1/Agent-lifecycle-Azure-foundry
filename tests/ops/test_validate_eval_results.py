@@ -233,3 +233,102 @@ evaluators:
     assert code == 0
     assert data["status"] == "success"
     assert data["metrics"]["relevance"]["score"] == pytest.approx(0.85)
+
+
+def test_foundry_per_testing_criteria_results_are_scored_as_pass_rates(tmp_path: Path) -> None:
+    """The Foundry evals API reports pass/fail counts per criterion, not scores."""
+    config = tmp_path / "eval.yaml"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+
+    config.write_text(
+        """
+options:
+  pass_threshold: 0.70
+evaluators:
+  - builtin.intent_resolution
+  - builtin.relevance
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _write(
+        results,
+        {
+            "status": "completed",
+            "result_counts": {"total": 10, "passed": 8, "failed": 2, "errored": 0},
+            "per_testing_criteria_results": [
+                {"testing_criteria": "intent_resolution", "passed": 8, "failed": 2, "errored": 0},
+                {"testing_criteria": "relevance", "passed": 9, "failed": 1, "errored": 0},
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+    assert code == 0
+    assert data["status"] == "success"
+    assert data["metrics"]["builtin.intent_resolution"]["score"] == pytest.approx(0.8)
+    assert data["metrics"]["builtin.relevance"]["score"] == pytest.approx(0.9)
+
+
+def test_errored_evaluator_samples_count_against_the_pass_rate(tmp_path: Path) -> None:
+    config = tmp_path / "eval.yaml"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+
+    config.write_text(
+        """
+options:
+  pass_threshold: 0.70
+evaluators:
+  - builtin.tool_call_accuracy
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _write(
+        results,
+        {
+            "per_testing_criteria_results": [
+                {"testing_criteria": "tool_call_accuracy", "passed": 0, "failed": 0, "errored": 9},
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+    assert code == 2
+    assert data["status"] == "failure"
+    assert data["metrics"]["builtin.tool_call_accuracy"]["score"] == pytest.approx(0.0)
+
+
+def test_criterion_with_no_evaluated_samples_is_reported_as_missing(tmp_path: Path) -> None:
+    config = tmp_path / "eval.yaml"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+
+    config.write_text(
+        """
+options:
+  pass_threshold: 0.70
+evaluators:
+  - builtin.relevance
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _write(
+        results,
+        {
+            "per_testing_criteria_results": [
+                {"testing_criteria": "relevance", "passed": 0, "failed": 0, "errored": 0},
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+    assert code == 2
+    assert data["status"] == "failure"
+    assert any("relevance" in message for message in data["errors"])

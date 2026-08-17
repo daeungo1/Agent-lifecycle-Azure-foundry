@@ -4,6 +4,9 @@ from pathlib import Path
 import yaml
 
 POSTPROVISION_MODULES = [
+    # Observability first: the agents read APPLICATIONINSIGHTS_CONNECTION_STRING at
+    # deploy time, so the resource and the project connection must exist before then.
+    "lifecycle_ops.provisioning.observability",
     "lifecycle_ops.provisioning.knowledge_bases",
     "lifecycle_ops.provisioning.toolboxes",
 ]
@@ -59,7 +62,7 @@ def test_hooks_preserve_deployment_artifacts_on_both_platforms() -> None:
 
 def test_windows_hooks_stop_after_each_failed_native_command() -> None:
     for path, expected_checks in (
-        (Path("deploy/hooks/postprovision.ps1"), 2),
+        (Path("deploy/hooks/postprovision.ps1"), 3),
         (Path("deploy/hooks/postdeploy.ps1"), 1),
     ):
         source = path.read_text(encoding="utf-8")
