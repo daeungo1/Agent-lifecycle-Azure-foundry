@@ -127,6 +127,32 @@ PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
 PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
 ```
 
+## Search name migration
+
+Upgrading an environment created before the deterministic Search suffix change
+creates replacement Search services because ARM deployments are incremental.
+The fixed-name services remain deployed and billable until an operator removes
+them.
+
+1. Run `azd provision --no-prompt` to create the suffixed Search services and
+   populate their Knowledge Bases and Toolboxes.
+2. Run `azd deploy --no-prompt`, complete the three-agent smoke test, and confirm
+   all three evaluation gates pass.
+3. Confirm the active `FOUNDRYIQ_SEARCH_ENDPOINT_*` and
+   `SEARCH_RESOURCE_ID_*` values reference the suffixed services.
+4. Only then remove each legacy fixed-name service:
+
+   ```bash
+   az search service delete \
+     --name <legacy-fixed-search-name> \
+     --resource-group "$AZURE_RESOURCE_GROUP" \
+     --yes
+   ```
+
+Do not delete the fixed-name services before verification. If smoke,
+evaluation, or RBAC verification fails, keep the legacy services and resolve
+the new deployment first.
+
 ## Teardown
 
 ```bash

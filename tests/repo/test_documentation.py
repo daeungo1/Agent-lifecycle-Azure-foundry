@@ -499,3 +499,14 @@ def test_operations_places_continuous_evaluation_after_deployment_gate() -> None
         "The Operate stage registers or updates deterministic evaluation rules "
         "after the deployment gate succeeds."
     ) in normalized
+
+
+def test_readme_documents_safe_search_name_migration() -> None:
+    content = _readme_path().read_text(encoding="utf-8")
+    migration = content.split("## Search name migration", 1)[1].split("## Teardown", 1)[0]
+
+    create = migration.index("creates replacement Search services")
+    verify = migration.index("all three evaluation gates pass")
+    cleanup = migration.index("az search service delete")
+    assert create < verify < cleanup
+    assert "Do not delete the fixed-name services before verification" in migration

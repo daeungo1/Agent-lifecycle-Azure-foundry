@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+import httpx
 import yaml
+from azure.identity import DefaultAzureCredential
 
 from lifecycle_ops.azd_env import get_values, set_value
 from lifecycle_ops.naming import (
@@ -105,20 +107,11 @@ def build_connection_create_args(*, connection_name: str, endpoint: str) -> list
     ]
 
 
-def build_connection_show_args(project_id: str, connection_name: str) -> list[str]:
-    return [
-        "az",
-        "rest",
-        "--method",
-        "get",
-        "--url",
-        (
-            f"https://management.azure.com{project_id}/connections/{connection_name}"
-            "?api-version=2025-04-01-preview"
-        ),
-        "--output",
-        "json",
-    ]
+def build_connection_resource_url(project_id: str, connection_name: str) -> str:
+    return (
+        f"https://management.azure.com{project_id}/connections/{connection_name}"
+        "?api-version=2025-04-01-preview"
+    )
 
 
 def build_connection_assert_args(connection_name: str | None = None) -> list[str]:
@@ -462,6 +455,28 @@ def _connection_exists(payload: Any, connection_name: str) -> bool:
     )
 
 
+def _get_connection_resource(*, project_id: str, connection_name: str) -> dict[str, Any]:
+    credential = DefaultAzureCredential()
+    try:
+        token = credential.get_token("https://management.azure.com/.default").token
+        with httpx.Client() as client:
+            response = client.get(
+                build_connection_resource_url(project_id, connection_name),
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+    finally:
+        close = getattr(credential, "close", None)
+        if callable(close):
+            close()
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"Connection '{connection_name}' ARM response was not an object.")
+    return payload
+
+
 def ensure_remote_tool_connection(
     *,
     project_id: str,
@@ -480,7 +495,10 @@ def ensure_remote_tool_connection(
             )
         return
 
-    resource = _run_json(build_connection_show_args(project_id, connection_name))
+    resource = _get_connection_resource(
+        project_id=project_id,
+        connection_name=connection_name,
+    )
     details = resource.get("properties") if isinstance(resource, dict) else None
     if not isinstance(details, dict):
         raise ValueError(

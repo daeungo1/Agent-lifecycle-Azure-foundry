@@ -4,7 +4,7 @@ agent:
   name: marketing-agent
 
 dataset:
-  local_uri: evals/data/marketing.jsonl
+  local_uri: evals/live/marketing.jsonl
 
 evaluators:
   - builtin.intent_resolution
