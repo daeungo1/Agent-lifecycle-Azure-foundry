@@ -11,7 +11,7 @@ from lifecycle_ops.provisioning.toolboxes import (
     DEPARTMENT_TOOLBOXES,
     build_connection_assert_args,
     build_connection_create_args,
-    build_connection_show_args,
+    build_connection_resource_url,
     build_reconciliation_operations,
     build_toolbox_connection_add_args,
     build_toolbox_connection_remove_args,
@@ -97,24 +97,19 @@ def test_toolbox_create_and_publish_args_are_non_interactive() -> None:
     assert "--no-prompt" in publish_args
 
 
-def test_connection_verify_args_use_show_and_list_not_update() -> None:
+def test_connection_resource_url_targets_project_arm_resource() -> None:
     project_id = (
         "/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/"
         "accounts/a1/projects/p1"
     )
-    show_args = build_connection_show_args(project_id, "kb-shared-remote-tool")
+    resource_url = build_connection_resource_url(project_id, "kb-shared-remote-tool")
     assert_args = build_connection_assert_args("kb-shared-remote-tool")
 
-    assert show_args[:4] == ["az", "rest", "--method", "get"]
-    assert show_args[4:6] == [
-        "--url",
-        (
-            "https://management.azure.com"
-            f"{project_id}/connections/kb-shared-remote-tool"
-            "?api-version=2025-04-01-preview"
-        ),
-    ]
-    assert "update" not in " ".join(show_args)
+    assert resource_url == (
+        "https://management.azure.com"
+        f"{project_id}/connections/kb-shared-remote-tool"
+        "?api-version=2025-04-01-preview"
+    )
     assert assert_args[:4] == ["azd", "ai", "connection", "list"]
 
 
@@ -410,21 +405,21 @@ def test_ensure_remote_tool_connection_validates_existing_arm_properties(
         commands.append(command)
         if command == toolboxes.build_connection_list_args():
             return [{"name": "kb-development-remote-tool"}]
-        if command == build_connection_show_args(
-            project_id,
-            "kb-development-remote-tool",
-        ):
-            return {
-                "properties": {
-                    "category": "RemoteTool",
-                    "target": "https://example.test/knowledgebases/dev/mcp",
-                    "authType": "AgenticIdentityToken",
-                    "audience": AUDIENCE,
-                }
-            }
         raise AssertionError(f"Unexpected command: {command}")
 
     monkeypatch.setattr(toolboxes, "_run_json", fake_run_json)
+    monkeypatch.setattr(
+        toolboxes,
+        "_get_connection_resource",
+        lambda **kwargs: {
+            "properties": {
+                "category": "RemoteTool",
+                "target": "https://example.test/knowledgebases/dev/mcp",
+                "authType": "AgenticIdentityToken",
+                "audience": AUDIENCE,
+            }
+        },
+    )
 
     toolboxes.ensure_remote_tool_connection(
         project_id=project_id,
@@ -432,10 +427,59 @@ def test_ensure_remote_tool_connection_validates_existing_arm_properties(
         target="https://example.test/knowledgebases/dev/mcp",
     )
 
-    assert commands == [
-        toolboxes.build_connection_list_args(),
-        build_connection_show_args(project_id, "kb-development-remote-tool"),
-    ]
+    assert commands == [toolboxes.build_connection_list_args()]
+
+
+def test_get_connection_resource_uses_default_azure_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[object] = []
+
+    class Credential:
+        def get_token(self, scope: str) -> object:
+            events.append(("token", scope))
+            return type("Token", (), {"token": "arm-token"})()
+
+        def close(self) -> None:
+            events.append("credential-close")
+
+    class Response:
+        def raise_for_status(self) -> None:
+            events.append("raise-for-status")
+
+        def json(self) -> dict[str, object]:
+            return {"properties": {"category": "RemoteTool"}}
+
+    class Client:
+        def __enter__(self) -> "Client":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            events.append("client-close")
+
+        def get(
+            self,
+            url: str,
+            *,
+            headers: dict[str, str],
+            timeout: int,
+        ) -> Response:
+            events.append(("get", url, headers, timeout))
+            return Response()
+
+    monkeypatch.setattr(toolboxes, "DefaultAzureCredential", Credential)
+    monkeypatch.setattr(toolboxes.httpx, "Client", Client)
+
+    result = toolboxes._get_connection_resource(
+        project_id="/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/accounts/a1/projects/p1",
+        connection_name="kb-development-remote-tool",
+    )
+
+    assert result == {"properties": {"category": "RemoteTool"}}
+    assert ("token", "https://management.azure.com/.default") in events
+    get_event = next(event for event in events if isinstance(event, tuple) and event[0] == "get")
+    assert get_event[2] == {"Authorization": "Bearer arm-token"}
+    assert "credential-close" in events
 
 
 def test_upsert_toolbox_verifies_exact_connections_and_sets_endpoint(

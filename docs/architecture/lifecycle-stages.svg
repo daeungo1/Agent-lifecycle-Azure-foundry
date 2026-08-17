@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 460" width="1180" height="460" role="img"
+     aria-label="Agent lifecycle workflow: Build, Evaluate, Operate with a blocking gate and a regression feedback loop">
+  <title>Agent lifecycle workflow</title>
+  <desc>Build provisions and deploys, Evaluate runs a blocking gate, Operate enables continuous controls.</desc>
+
+  <style>
+    .bg { fill: #ffffff; }
+    .stage { rx: 14; ry: 14; stroke-width: 2; }
+    .build { fill: #eff6ff; stroke: #1d4ed8; }
+    .eval  { fill: #f5f3ff; stroke: #6d28d9; }
+    .oper  { fill: #ecfdf5; stroke: #047857; }
+    .card  { rx: 8; ry: 8; fill: #ffffff; stroke-width: 1.5; }
+    .card-build { stroke: #93c5fd; }
+    .card-eval  { stroke: #c4b5fd; }
+    .card-oper  { stroke: #6ee7b7; }
+    .stage-title { font: 700 19px "Segoe UI", system-ui, sans-serif; }
+    .t-build { fill: #1d4ed8; }
+    .t-eval  { fill: #6d28d9; }
+    .t-oper  { fill: #047857; }
+    .card-title { font: 600 14px "Segoe UI", system-ui, sans-serif; fill: #0f172a; }
+    .card-sub   { font: 400 12px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+    .edge       { fill: none; stroke: #334155; stroke-width: 2.5; }
+    .edge-pass  { fill: none; stroke: #047857; stroke-width: 2.5; }
+    .edge-block { fill: none; stroke: #b91c1c; stroke-width: 2.5; stroke-dasharray: 7 5; }
+    .edge-loop  { fill: none; stroke: #b45309; stroke-width: 2.5; stroke-dasharray: 7 5; }
+    .lbl        { font: 600 12px "Segoe UI", system-ui, sans-serif; }
+    .lbl-pass   { fill: #047857; }
+    .lbl-block  { fill: #b91c1c; }
+    .lbl-loop   { fill: #b45309; }
+  </style>
+
+  <defs>
+    <marker id="a-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="a-pass" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+    </marker>
+    <marker id="a-block" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
+    </marker>
+    <marker id="a-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b45309"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="460"/>
+
+  <!-- ===== Stage 1: Build ===== -->
+  <rect class="stage build" x="30" y="60" width="340" height="230"/>
+  <text class="stage-title t-build" x="50" y="90">1. Build</text>
+
+  <rect class="card card-build" x="50" y="106" width="300" height="38"/>
+  <text class="card-title" x="64" y="130">azd provision</text>
+  <text class="card-sub"   x="196" y="130">Foundry · 모델 · Search</text>
+
+  <rect class="card card-build" x="50" y="150" width="300" height="38"/>
+  <text class="card-title" x="64" y="174">postprovision</text>
+  <text class="card-sub"   x="160" y="174">App Insights · 지식 · 툴박스</text>
+
+  <rect class="card card-build" x="50" y="194" width="300" height="38"/>
+  <text class="card-title" x="64" y="218">azd deploy</text>
+  <text class="card-sub"   x="150" y="218">부서 에이전트 3개</text>
+
+  <rect class="card card-build" x="50" y="238" width="300" height="38"/>
+  <text class="card-title" x="64" y="262">postdeploy</text>
+  <text class="card-sub"   x="150" y="262">부서별 RBAC 적용</text>
+
+  <!-- ===== Stage 2: Evaluate ===== -->
+  <rect class="stage eval" x="420" y="60" width="340" height="230"/>
+  <text class="stage-title t-eval" x="440" y="90">2. Evaluate</text>
+
+  <rect class="card card-eval" x="440" y="106" width="300" height="38"/>
+  <text class="card-title" x="454" y="130">스모크 호출</text>
+  <text class="card-sub"   x="552" y="130">3개 에이전트 활성 확인</text>
+
+  <rect class="card card-eval" x="440" y="150" width="300" height="38"/>
+  <text class="card-title" x="454" y="174">eval run</text>
+  <text class="card-sub"   x="524" y="174">골든 데이터셋 8건 × 3</text>
+
+  <rect class="card card-eval" x="440" y="194" width="300" height="82"/>
+  <text class="card-title" x="454" y="218">배포 게이트</text>
+  <text class="card-sub"   x="454" y="238">intent · task · relevance · groundedness</text>
+  <text class="card-sub"   x="454" y="258">임계값 0.70 · 평가자 오류 시 차단</text>
+
+  <!-- ===== Stage 3: Operate ===== -->
+  <rect class="stage oper" x="810" y="60" width="340" height="230"/>
+  <text class="stage-title t-oper" x="830" y="90">3. Operate</text>
+
+  <rect class="card card-oper" x="830" y="106" width="300" height="38"/>
+  <text class="card-title" x="844" y="130">연속 평가</text>
+  <text class="card-sub"   x="928" y="130">response.completed 규칙</text>
+
+  <rect class="card card-oper" x="830" y="150" width="300" height="38"/>
+  <text class="card-title" x="844" y="174">추적</text>
+  <text class="card-sub"   x="898" y="174">Application Insights · 부서별</text>
+
+  <rect class="card card-oper" x="830" y="194" width="300" height="38"/>
+  <text class="card-title" x="844" y="218">Agent365</text>
+  <text class="card-sub"   x="928" y="218">레지스트리 · 관측 거버넌스</text>
+
+  <rect class="card card-oper" x="830" y="238" width="300" height="38"/>
+  <text class="card-title" x="844" y="262">Entra · RBAC</text>
+  <text class="card-sub"   x="948" y="262">최소 권한 유지</text>
+
+  <!-- ===== Stage transitions (between panels, no overlap) ===== -->
+  <path class="edge" d="M 370 175 L 414 175" marker-end="url(#a-dark)"/>
+  <path class="edge-pass" d="M 760 175 L 804 175" marker-end="url(#a-pass)"/>
+  <text class="lbl lbl-pass" x="762" y="164">통과</text>
+
+  <!-- Gate failure blocks promotion: routed below the panels -->
+  <path class="edge-block" d="M 590 290 L 590 340 L 200 340 L 200 296" marker-end="url(#a-block)"/>
+  <text class="lbl lbl-block" x="330" y="333">게이트 실패 · 승격 차단</text>
+
+  <!-- Operate feeds failures back into Build datasets: routed lower still -->
+  <path class="edge-loop" d="M 980 290 L 980 400 L 200 400 L 200 296" marker-end="url(#a-loop)"/>
+  <text class="lbl lbl-loop" x="470" y="393">운영 실패 사례를 회귀 데이터셋으로 승격</text>
+
+  <text class="card-sub" x="30" y="437">게이트를 통과해야 Operate 제어가 켜집니다. 실패하면 승격이 멈추고 Build 단계로 되돌아갑니다.</text>
+</svg>

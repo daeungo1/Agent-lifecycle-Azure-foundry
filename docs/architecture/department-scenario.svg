@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 560" width="1180" height="560" role="img"
+     aria-label="Three department agents, each reaching only the shared knowledge boundary and its own department boundary">
+  <title>Department agent scenario</title>
+  <desc>Each department coordinator uses two specialists and one toolbox that reaches the shared boundary plus its own department boundary only.</desc>
+
+  <style>
+    .bg { fill: #ffffff; }
+    .panel { rx: 14; ry: 14; stroke-width: 2; }
+    .p-dev { fill: #eff6ff; stroke: #1d4ed8; }
+    .p-hr  { fill: #fdf2f8; stroke: #be185d; }
+    .p-mkt { fill: #fff7ed; stroke: #c2410c; }
+    .node { rx: 8; ry: 8; fill: #ffffff; stroke-width: 1.5; }
+    .n-dev { stroke: #93c5fd; }
+    .n-hr  { stroke: #f9a8d4; }
+    .n-mkt { stroke: #fdba74; }
+    .n-user { fill: #f1f5f9; stroke: #64748b; stroke-width: 2; rx: 8; ry: 8; }
+    .kb  { rx: 10; ry: 10; stroke-width: 2; }
+    .kb-shared { fill: #ecfdf5; stroke: #047857; }
+    .kb-dev { fill: #eff6ff; stroke: #1d4ed8; }
+    .kb-hr  { fill: #fdf2f8; stroke: #be185d; }
+    .kb-mkt { fill: #fff7ed; stroke: #c2410c; }
+    .panel-title { font: 700 16px "Segoe UI", system-ui, sans-serif; }
+    .tt-dev { fill: #1d4ed8; }
+    .tt-hr  { fill: #be185d; }
+    .tt-mkt { fill: #c2410c; }
+    .node-t { font: 600 13px "Segoe UI", system-ui, sans-serif; fill: #0f172a; }
+    .node-s { font: 400 11px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+    .kb-t   { font: 700 13px "Segoe UI", system-ui, sans-serif; fill: #0f172a; }
+    .kb-s   { font: 400 11px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+    .head   { font: 700 15px "Segoe UI", system-ui, sans-serif; fill: #0f172a; }
+    .link { fill: none; stroke: #64748b; stroke-width: 2; }
+    .flow-dev { fill: none; stroke: #1d4ed8; stroke-width: 2.5; }
+    .flow-hr  { fill: none; stroke: #be185d; stroke-width: 2.5; }
+    .flow-mkt { fill: none; stroke: #c2410c; stroke-width: 2.5; }
+    .flow-shared { fill: none; stroke: #047857; stroke-width: 2.5; }
+    .deny { fill: none; stroke: #b91c1c; stroke-width: 2; stroke-dasharray: 6 5; }
+    .deny-t { font: 600 11px "Segoe UI", system-ui, sans-serif; fill: #b91c1c; }
+    .note { font: 400 12px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+  </style>
+
+  <defs>
+    <marker id="m-dev" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
+    </marker>
+    <marker id="m-hr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#be185d"/>
+    </marker>
+    <marker id="m-mkt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c2410c"/>
+    </marker>
+    <marker id="m-shared" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+    </marker>
+    <marker id="m-deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="560"/>
+
+  <text class="head" x="30" y="34">사용자 요청</text>
+  <text class="head" x="330" y="34">부서 에이전트</text>
+  <text class="head" x="820" y="34">지식 경계</text>
+
+  <!-- User -->
+  <rect class="n-user" x="30" y="240" width="150" height="60"/>
+  <text class="node-t" x="48" y="266">업무 사용자</text>
+  <text class="node-s" x="48" y="286">사내 시스템 연동</text>
+
+  <!-- ============ Development ============ -->
+  <rect class="panel p-dev" x="250" y="56" width="420" height="130"/>
+  <text class="panel-title tt-dev" x="268" y="80">개발팀</text>
+
+  <rect class="node n-dev" x="268" y="92" width="150" height="34"/>
+  <text class="node-t" x="282" y="114">coordinator</text>
+
+  <rect class="node n-dev" x="440" y="92" width="212" height="34"/>
+  <text class="node-s" x="452" y="113">architecture-specialist</text>
+
+  <rect class="node n-dev" x="440" y="134" width="212" height="34"/>
+  <text class="node-s" x="452" y="155">code-quality-specialist</text>
+
+  <rect class="node n-dev" x="268" y="134" width="150" height="34"/>
+  <text class="node-s" x="282" y="155">개발 툴박스</text>
+
+  <path class="link" d="M 418 109 L 436 109"/>
+  <path class="link" d="M 418 151 L 436 151"/>
+  <path class="link" d="M 343 126 L 343 132"/>
+
+  <!-- ============ Human resources ============ -->
+  <rect class="panel p-hr" x="250" y="206" width="420" height="130"/>
+  <text class="panel-title tt-hr" x="268" y="230">인사팀</text>
+
+  <rect class="node n-hr" x="268" y="242" width="150" height="34"/>
+  <text class="node-t" x="282" y="264">coordinator</text>
+
+  <rect class="node n-hr" x="440" y="242" width="212" height="34"/>
+  <text class="node-s" x="452" y="263">policy-specialist</text>
+
+  <rect class="node n-hr" x="440" y="284" width="212" height="34"/>
+  <text class="node-s" x="452" y="305">onboarding-specialist</text>
+
+  <rect class="node n-hr" x="268" y="284" width="150" height="34"/>
+  <text class="node-s" x="282" y="305">인사 툴박스</text>
+
+  <path class="link" d="M 418 259 L 436 259"/>
+  <path class="link" d="M 418 301 L 436 301"/>
+  <path class="link" d="M 343 276 L 343 282"/>
+
+  <!-- ============ Marketing ============ -->
+  <rect class="panel p-mkt" x="250" y="356" width="420" height="130"/>
+  <text class="panel-title tt-mkt" x="268" y="380">마케팅팀</text>
+
+  <rect class="node n-mkt" x="268" y="392" width="150" height="34"/>
+  <text class="node-t" x="282" y="414">coordinator</text>
+
+  <rect class="node n-mkt" x="440" y="392" width="212" height="34"/>
+  <text class="node-s" x="452" y="413">campaign-specialist</text>
+
+  <rect class="node n-mkt" x="440" y="434" width="212" height="34"/>
+  <text class="node-s" x="452" y="455">content-specialist</text>
+
+  <rect class="node n-mkt" x="268" y="434" width="150" height="34"/>
+  <text class="node-s" x="282" y="455">마케팅 툴박스</text>
+
+  <path class="link" d="M 418 409 L 436 409"/>
+  <path class="link" d="M 418 451 L 436 451"/>
+  <path class="link" d="M 343 426 L 343 432"/>
+
+  <!-- User to coordinators -->
+  <path class="flow-dev" d="M 180 258 L 214 258 L 214 109 L 262 109" marker-end="url(#m-dev)"/>
+  <path class="flow-hr"  d="M 180 270 L 226 270 L 226 259 L 262 259" marker-end="url(#m-hr)"/>
+  <path class="flow-mkt" d="M 180 282 L 214 282 L 214 409 L 262 409" marker-end="url(#m-mkt)"/>
+
+  <!-- ============ Knowledge boundaries ============ -->
+  <rect class="kb kb-shared" x="820" y="240" width="330" height="60"/>
+  <text class="kb-t" x="838" y="266">공용 경계</text>
+  <text class="kb-s" x="838" y="286">전사 공통 업무 핸드북</text>
+
+  <rect class="kb kb-dev" x="820" y="60" width="330" height="60"/>
+  <text class="kb-t" x="838" y="86">개발 경계</text>
+  <text class="kb-s" x="838" y="106">단말 소프트웨어 개발 표준</text>
+
+  <rect class="kb kb-hr" x="820" y="150" width="330" height="60"/>
+  <text class="kb-t" x="838" y="176">인사 경계</text>
+  <text class="kb-s" x="838" y="196">인사 운영 정책</text>
+
+  <rect class="kb kb-mkt" x="820" y="420" width="330" height="60"/>
+  <text class="kb-t" x="838" y="446">마케팅 경계</text>
+  <text class="kb-s" x="838" y="466">마케팅 캠페인 가이드</text>
+
+  <!-- Toolbox to own boundary -->
+  <path class="flow-dev" d="M 418 151 L 700 151 L 700 90 L 814 90" marker-end="url(#m-dev)"/>
+  <path class="flow-hr"  d="M 418 301 L 730 301 L 730 180 L 814 180" marker-end="url(#m-hr)"/>
+  <path class="flow-mkt" d="M 418 451 L 700 451 L 700 450 L 814 450" marker-end="url(#m-mkt)"/>
+
+  <!-- Toolboxes to shared boundary -->
+  <path class="flow-shared" d="M 418 145 L 762 145 L 762 258 L 814 258" marker-end="url(#m-shared)"/>
+  <path class="flow-shared" d="M 418 295 L 780 295 L 780 270 L 814 270" marker-end="url(#m-shared)"/>
+  <path class="flow-shared" d="M 418 445 L 762 445 L 762 282 L 814 282" marker-end="url(#m-shared)"/>
+
+  <!-- Blocked cross-department access -->
+  <path class="deny" d="M 418 463 L 690 463 L 690 200 L 814 200" marker-end="url(#m-deny)"/>
+  <text class="deny-t" x="500" y="479">마케팅 → 인사 경계 접근 차단</text>
+
+  <text class="note" x="30" y="524">각 툴박스는 공용 경계와 자기 부서 경계 두 개만 연결합니다. 타 부서 경계는 연결 자체가 없으므로 조회가 구조적으로 불가능합니다.</text>
+  <text class="note" x="30" y="546">RBAC도 같은 경계를 따릅니다. 에이전트 관리 ID는 해당 두 Search 서비스에만 Search Index Data Reader 권한을 가집니다.</text>
+</svg>

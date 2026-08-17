@@ -4,7 +4,7 @@ agent:
   name: human-resources-agent
 
 dataset:
-  local_uri: evals/data/human-resources.jsonl
+  local_uri: evals/live/human-resources.jsonl
 
 evaluators:
   - builtin.intent_resolution

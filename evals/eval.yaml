@@ -4,7 +4,7 @@ agent:
   name: development-agent
 
 dataset:
-  local_uri: evals/data/development.jsonl
+  local_uri: evals/live/development.jsonl
 
 # Evaluator identifiers must carry the "builtin." prefix; the Foundry evals API
 # rejects the bare names with EvaluatorNotFound.
