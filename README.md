@@ -1,21 +1,37 @@
 # Enterprise Agent Lifecycle on Azure Foundry
 
-Microsoft Foundry Hosted Agents로 **부서별로 격리된 엔터프라이즈 에이전트**를
-Build → Evaluate → Operate 순서로 운영하는 참조 구현입니다.
+Microsoft Foundry Hosted Agents로 에이전트를 **만들고(Build) · 평가하고(Evaluate) · 운영하는(Operate)**
+전체 수명주기를 실제 Azure 리소스 위에서 그대로 돌려보는 데모입니다.
 
-이 저장소의 지식 문서와 평가 데이터셋은 **가상의 엔터프라이즈 시나리오**입니다.
-스마트폰 제조와 이동통신 서비스를 함께 운영하는 가상 기업을 가정하고, 개발팀 · 인사팀 · 마케팅팀
-세 조직이 각자의 지식만 조회하는 상황을 다룹니다. 실제 조직이나 제품과는 무관하며,
-자기 도메인 데이터로 교체해서 사용하도록 만든 예시입니다.
+목표는 잘 동작하는 에이전트 하나를 만드는 것이 아니라,
+**평가 게이트를 통과한 에이전트만 운영에 올라가는 파이프라인**을 처음부터 끝까지 보여주는 것입니다.
+
+## 이 데모가 답하는 질문
+
+| 단계 | 질문 | 이 저장소의 답 |
+| --- | --- | --- |
+| **Build** | 에이전트를 어떻게 재현 가능하게 배포하는가 | `azd provision` · `azd deploy`와 훅으로 인프라 · 지식 베이스 · 툴박스 · 권한까지 코드로 정의 |
+| **Evaluate** | 이 에이전트를 운영에 올려도 되는가 | 골든 데이터셋으로 4개 지표를 측정하고 **통과하지 못하면 승격을 차단** |
+| **Operate** | 올린 뒤에 품질을 어떻게 지키는가 | 연속 평가 규칙, Application Insights 추적, Agent365 관측 거버넌스 |
+
+## 시나리오
+
+**Enterprise (Electronics & Telco) 가상 시나리오**입니다.
+개발팀 · 인사팀 · 마케팅팀 **세 부서가 각자의 에이전트를 운영**하며, 위 수명주기를 부서 단위로 반복합니다.
+
+부서를 셋으로 둔 이유는 수명주기가 한 조직을 넘어 확장될 때 생기는 문제를 함께 보여주기 위해서입니다.
+부서마다 참조할 지식이 다르고, 접근 권한이 달라야 하며, 평가 기준과 합격선도 따로 관리되어야 합니다.
+지식 문서와 평가 데이터셋은 모두 예시이므로 자기 도메인 데이터로 교체해서 사용합니다.
 
 ## 핵심 원칙
 
 | 원칙 | 구현 |
 | --- | --- |
+| 게이트 우선 | 평가 게이트를 통과해야 Operate 제어가 활성화 |
+| 재현 가능한 배포 | 인프라 · 지식 · 툴박스 · RBAC를 azd 훅으로 코드화해 같은 결과를 반복 생성 |
 | 부서 격리 | 각 부서 에이전트는 **공용 + 자기 부서** 지식만 조회. 타 부서 요청은 근거 없음으로 응답 |
 | 최소 권한 | 에이전트 관리 ID에 `Search Index Data Reader`만, 허용된 범위(scope)에만 부여 |
 | 자격 증명 비저장 | 관리 ID와 `DefaultAzureCredential`만 사용. 키·토큰을 소스·프롬프트·로그에 두지 않음 |
-| 게이트 우선 | 평가 게이트를 통과해야 Operate 제어가 활성화 |
 
 ---
 
@@ -26,14 +42,20 @@ Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 
 
 ![Agent lifecycle stages](docs/architecture/lifecycle-stages.svg)
 
+<details>
+<summary>단계별 상세 다이어그램 펼치기 (프로비저닝 · 게이트 · 피드백 루프 전체)</summary>
+
 [Open full-size lifecycle SVG](docs/architecture/agent-lifecycle-workflow.svg)
 
 ![Enterprise agent lifecycle workflow](docs/architecture/agent-lifecycle-workflow.svg)
 
+</details>
+
 ---
 
-## 아키텍처 2. 3개 팀 시나리오
+## 아키텍처 2. 부서 단위 확장 시나리오
 
+같은 수명주기를 세 부서가 각자 돌립니다.
 각 부서는 coordinator 1개와 specialist 2개로 구성되고, 자기 부서 툴박스를 통해서만 지식에 접근합니다.
 툴박스는 **공용 경계 + 자기 부서 경계** 두 개만 연결하므로 교차 조회가 구조적으로 차단됩니다.
 
@@ -55,9 +77,14 @@ Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 
 
 ![Azure resources](docs/architecture/azure-resources.svg)
 
+<details>
+<summary>리소스 상세 다이어그램 펼치기 (경계 · 바인딩 · 하드닝 대상 전체)</summary>
+
 [Open full-size Azure resource SVG](docs/architecture/azure-resource-architecture.svg)
 
 ![Azure resource architecture](docs/architecture/azure-resource-architecture.svg)
+
+</details>
 
 ---
 
