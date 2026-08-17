@@ -106,9 +106,7 @@ def test_architecture_diagram_text_stays_inside_its_box(diagram: str) -> None:
         for box_x, box_y, box_width, box_height in boxes:
             inside = box_x <= x <= box_x + box_width and box_y <= y <= box_y + box_height
             if inside:
-                assert right <= box_x + box_width - 4, (
-                    f"{diagram}: text escapes its box: {value}"
-                )
+                assert right <= box_x + box_width - 4, f"{diagram}: text escapes its box: {value}"
                 break
 
 
