@@ -1,4 +1,5 @@
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -87,6 +88,34 @@ def test_resolve_value_prefers_process_environment_and_ignores_case(
     values = {"SEARCH_RESOURCE_ID_SHARED": "/from/azd"}
 
     assert azd_env.resolve_value("SEARCH_RESOURCE_ID_SHARED", values) == "/from/environment"
+
+
+def test_resolve_value_keeps_process_environment_authoritative_on_every_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # os.environ ignores case on Windows but not on Linux, so setenv alone lets the
+    # same lookup resolve differently per platform. A plain dict pins the ordering.
+    monkeypatch.setattr(
+        azd_env,
+        "os",
+        SimpleNamespace(environ={"searcH_RESOURCE_ID_SHARED": "/from/environment"}),
+    )
+    values = {"SEARCH_RESOURCE_ID_SHARED": "/from/azd"}
+
+    assert azd_env.resolve_value("SEARCH_RESOURCE_ID_SHARED", values) == "/from/environment"
+
+
+def test_resolve_value_prefers_the_exact_spelling_within_one_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A provider switch can leave both spellings behind; the exact name must win.
+    monkeypatch.setattr(azd_env, "os", SimpleNamespace(environ={}))
+    values = {
+        "searcH_RESOURCE_ID_SHARED": "/from/stale/provider",
+        "SEARCH_RESOURCE_ID_SHARED": "/from/current/provider",
+    }
+
+    assert azd_env.resolve_value("SEARCH_RESOURCE_ID_SHARED", values) == "/from/current/provider"
 
 
 def test_resolve_value_returns_default_when_absent(

@@ -90,7 +90,12 @@ class _DataTupleContainer:
         self.data = rows
 
 
-def test_configure_continuous_evaluation_reuses_existing_eval_by_name() -> None:
+def test_configure_continuous_evaluation_reuses_existing_eval_by_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Without this the judge model falls through to the developer's live azd
+    # environment, so the test passes locally and fails on a clean runner.
+    monkeypatch.setenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5.4-mini")
     existing = [_FakeEval(id="eval-existing-dev", name="continuous-eval-development")]
     evals_api = _FakeEvalsApi(existing=existing)
     project_client = _FakeProjectClient(openai_client=_FakeOpenAIClient(evals_api=evals_api))
