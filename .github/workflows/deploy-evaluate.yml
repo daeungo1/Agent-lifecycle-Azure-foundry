@@ -27,6 +27,7 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
       A365_PREREQUISITES_CLAIMED: ${{ vars.A365_PREREQUISITES_CLAIMED }}
+      PYTHONPATH: src
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,12 +37,15 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-ops.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Setup azd
         uses: Azure/setup-azd@v2
@@ -49,7 +53,7 @@ jobs:
       - name: Build
         run: |
           python -m ruff check .
-          python -m pytest tests/test_eval_datasets.py -v
+          python -m pytest tests/ops/test_eval_datasets.py -v
 
       - name: Install Foundry extension
         run: |
@@ -71,35 +75,23 @@ jobs:
           mkdir -p artifacts
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd provision --no-prompt
 
-      - name: knowledge bases
-        run: |
-          python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
-
-      - name: toolboxes
-        run: |
-          pwsh -File scripts/configure_toolboxes.ps1 -NoLogo -NoProfile
-
       - name: deploy
         run: |
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd deploy --no-prompt
-
-      - name: RBAC
-        run: |
-          python scripts/set_agent_rbac.py --report-path artifacts/rbac.json
 
       - name: three-agent smoke
         run: |
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Provide a brief development sprint update with citations." --no-prompt --output raw > artifacts/smoke-development.txt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Summarize a policy onboarding checklist with citations." --no-prompt --output raw > artifacts/smoke-human-resources.txt
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Draft a campaign launch summary with citations." --no-prompt --output raw > artifacts/smoke-marketing.txt
-          python scripts/verify_deployment.py --smoke-artifacts-dir artifacts --output-json artifacts/verify-deployment.json
+          python -m lifecycle_ops.operations.deployment_check --smoke-artifacts-dir artifacts --output-json artifacts/verify-deployment.json
 
       - name: Evaluate
         run: |
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension list --output json > artifacts/azd-extensions.json
           if AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --help > artifacts/eval-help.txt 2>&1; then
             if grep -q -- "--config" artifacts/eval-help.txt; then
-              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
+              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
             else
               echo "Current evaluation command does not support --config" >&2
               cat artifacts/eval-help.txt
@@ -110,16 +102,16 @@ jobs:
             cat artifacts/eval-help.txt
             exit 1
           fi
-          python scripts/validate_eval_results.py --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+          python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 
       - name: Operate
         run: |
-          python scripts/configure_continuous_evaluation.py > artifacts/continuous-evaluation.json
-          python scripts/agent365/configure_observability.py > artifacts/agent365-observability.json
+          python -m lifecycle_ops.provisioning.continuous_eval > artifacts/continuous-evaluation.json
+          python -m lifecycle_ops.operations.agent365.readiness > artifacts/agent365-observability.json
           if [ "${A365_PREREQUISITES_CLAIMED:-false}" = "true" ]; then
-            python scripts/agent365/verify_registry.py --prerequisites-claimed > artifacts/agent365-registry.json
+            python -m lifecycle_ops.operations.agent365.registry --prerequisites-claimed > artifacts/agent365-registry.json
           else
-            python scripts/agent365/verify_registry.py > artifacts/agent365-registry.json
+            python -m lifecycle_ops.operations.agent365.registry > artifacts/agent365-registry.json
           fi
 
       - name: Upload deployment artifacts

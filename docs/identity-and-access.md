@@ -21,7 +21,7 @@ No toolbox includes another department's private connection.
 
 ## Agent identity RBAC
 
-`scripts/set_agent_rbac.py` enforces least privilege by:
+`lifecycle_ops.provisioning.rbac` enforces least privilege by:
 
 - resolving each hosted agent `instance_identity.principal_id` with `AIProjectClient`
 - assigning `Search Index Data Reader` only on:

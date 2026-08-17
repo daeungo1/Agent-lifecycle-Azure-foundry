@@ -2,7 +2,23 @@ name: enterprise-agent-lifecycle
 
 infra:
   provider: microsoft.foundry
-  path: infra
+  path: deploy/infra
+
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: ./deploy/hooks/postprovision.sh
+    windows:
+      shell: pwsh
+      run: ./deploy/hooks/postprovision.ps1
+  postdeploy:
+    posix:
+      shell: sh
+      run: ./deploy/hooks/postdeploy.sh
+    windows:
+      shell: pwsh
+      run: ./deploy/hooks/postdeploy.ps1
 
 services:
   ai-project:
@@ -27,7 +43,7 @@ services:
     name: development-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: services/agents/development/main.py
+      entryPoint: agent.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT
@@ -56,7 +72,7 @@ services:
     name: human-resources-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: services/agents/human-resources/main.py
+      entryPoint: agent.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT
@@ -85,7 +101,7 @@ services:
     name: marketing-agent
     codeConfiguration:
       runtime: python_3_13
-      entryPoint: services/agents/marketing/main.py
+      entryPoint: agent.py
       dependencyResolution: remote_build
     environmentVariables:
       - name: FOUNDRY_PROJECT_ENDPOINT

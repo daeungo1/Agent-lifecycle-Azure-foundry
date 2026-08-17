@@ -9,7 +9,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 ## Architecture focus: Build -> Evaluate -> Operate
 
 - Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
-- Evaluate: Evaluation is an explicit gate before operate promotion using `eval.yaml` and `scripts/validate_eval_results.py`.
+- Evaluate: Evaluation is an explicit gate before operate promotion using `evals/eval.yaml` and `lifecycle_ops.evaluation.gate`.
 - Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
 
 ## Azure resource architecture
@@ -30,7 +30,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
   - development
   - human-resources
   - marketing
-- `scripts/set_agent_rbac.py` enforces Entra and RBAC least privilege by granting search reader rights only to shared + same-department boundaries.
+- `lifecycle_ops.provisioning.rbac` enforces Entra and RBAC least privilege by granting search reader rights only to shared + same-department boundaries.
 
 ## Identity, RBAC, and OBO decision
 
@@ -41,6 +41,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 ## Prerequisites
 
 - Python 3.13 runtime target and local Python environment.
+- `uv` installed for Python environment and dependency management.
 - `azd` installed, with Foundry extension support (`azd extension install microsoft.foundry --no-prompt`).
 - Azure subscription with quota for Foundry project and model deployment.
 - Preview and tenant prerequisites for Agent365 governance and Graph-based role operations.
@@ -59,11 +60,16 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 ## Local setup
 
 ```powershell
-python -m venv .venv
+uv --version
+uv venv --python 3.13
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install --prerelease=allow -r requirements-dev.txt
+pre-commit install
+pre-commit run --all-files
 ```
+
+Pre-commit runs Ruff lint and format checks for Python files. Run
+`python -m pytest -v` explicitly; CI also runs the full test suite.
 
 ## Local department run
 
@@ -73,40 +79,41 @@ $env:AZURE_AI_MODEL_DEPLOYMENT_NAME = "gpt-5.4-mini"
 $env:TOOLBOX_ENDPOINT = "https://your-toolbox-endpoint"
 
 $env:DEPARTMENT = "development"
-python services/agents/development/main.py
+python agent.py
 
 $env:DEPARTMENT = "human-resources"
-python services/agents/human-resources/main.py
+python agent.py
 
 $env:DEPARTMENT = "marketing"
-python services/agents/marketing/main.py
+python agent.py
 ```
 
 ## Provision and deploy
 
 ```bash
 azd extension install microsoft.foundry --no-prompt
-azd provision --no-prompt
 mkdir -p artifacts
-python scripts/provision_knowledge_bases.py --output artifacts/knowledge-bases.json
-pwsh -File scripts/configure_toolboxes.ps1
+azd provision --no-prompt
 azd deploy --no-prompt
-python scripts/set_agent_rbac.py --report-path artifacts/rbac.json
 ```
+
+The `postprovision` hook creates knowledge bases and toolboxes. The `postdeploy`
+hook applies agent RBAC. Continuous evaluation is enabled only after the
+deployment evaluation gate passes.
 
 ## Evaluate gate
 
 ```bash
-azd ai agent eval run --config eval.yaml --no-prompt --output json > artifacts/eval-results.json
-python scripts/validate_eval_results.py --config eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
+PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 ```
 
 ## Operate controls
 
 ```bash
-python scripts/configure_continuous_evaluation.py
-python scripts/agent365/configure_observability.py
-python scripts/agent365/verify_registry.py
+PYTHONPATH=src python -m lifecycle_ops.provisioning.continuous_eval
+PYTHONPATH=src python -m lifecycle_ops.operations.agent365.readiness
+PYTHONPATH=src python -m lifecycle_ops.operations.agent365.registry
 ```
 
 ## Teardown

@@ -9,7 +9,7 @@ description = "Enterprise Microsoft Foundry Hosted Agent lifecycle foundation"
 requires-python = ">=3.13,<3.14"
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]

@@ -3,7 +3,8 @@ from __future__ import annotations
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework_foundry import FoundryChatClient
 
-from .config import DepartmentConfig, Settings
+from .departments import DepartmentConfig
+from .settings import Settings
 from .toolbox import build_toolbox
 
 
@@ -17,9 +18,7 @@ def build_department_agent(
     credential: object,
 ) -> Agent:
     if len(config.specialists) != 2:
-        raise ValueError(
-            f"Department '{config.name}' must define exactly two specialists"
-        )
+        raise ValueError(f"Department '{config.name}' must define exactly two specialists")
 
     client = FoundryChatClient(
         project_endpoint=settings.foundry_project_endpoint,
