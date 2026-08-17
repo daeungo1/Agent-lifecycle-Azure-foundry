@@ -32,10 +32,7 @@ def _canonical(text: str) -> str:
 
 
 def _metric_aliases(metric_name: str) -> set[str]:
-    # eval.yaml identifies service evaluators as "builtin.<name>" while the results
-    # report the bare criterion name, so both spellings must resolve.
-    base = metric_name[len("builtin.") :] if metric_name.startswith("builtin.") else metric_name
-    aliases = set(METRIC_ALIASES.get(base, {base})) | {metric_name, base}
+    aliases = METRIC_ALIASES.get(metric_name, {metric_name})
     return {_canonical(item) for item in aliases}
 
 
@@ -125,27 +122,46 @@ def _collect_metric_aggregates(
             source = f"{section_name}.{raw_metric_key}"
             found[metric_name].extend(_score_from_object(metric_payload, source=source))
 
+    if isinstance(results, dict):
+        criteria_results = results.get("per_testing_criteria_results")
+        if isinstance(criteria_results, list):
+            for index, row in enumerate(criteria_results):
+                if not isinstance(row, dict):
+                    continue
+                raw_name = row.get("testing_criteria")
+                if not isinstance(raw_name, str):
+                    continue
+                metric_name = _resolve_metric_name(raw_name, required_metrics)
+                if metric_name is None:
+                    continue
+                passed = _to_float(row.get("passed", 0))
+                failed = _to_float(row.get("failed", 0))
+                errored = _to_float(row.get("errored", 0))
+                evaluated = passed + failed + errored
+                if evaluated <= 0:
+                    continue
+                found[metric_name].append(
+                    (
+                        passed / evaluated,
+                        f"per_testing_criteria_results[{index}]",
+                    )
+                )
+
     return found
 
 
-def _collect_criteria_pass_rates(
+def _collect_live_evaluator_errors(
     results: Any,
     required_metrics: list[str],
-) -> dict[str, list[tuple[float, str]]]:
-    """Score the Foundry evals shape, which reports counts per testing criterion.
-
-    A criterion has no numeric score there, so the pass rate over evaluated samples
-    is used. Errored samples count as not passed so the gate stays fail-closed.
-    """
-    collected: dict[str, list[tuple[float, str]]] = {metric: [] for metric in required_metrics}
+) -> list[str]:
     if not isinstance(results, dict):
-        return collected
+        return []
+    criteria_results = results.get("per_testing_criteria_results")
+    if not isinstance(criteria_results, list):
+        return []
 
-    rows = results.get("per_testing_criteria_results")
-    if not isinstance(rows, list):
-        return collected
-
-    for index, row in enumerate(rows):
+    errors: list[str] = []
+    for row in criteria_results:
         if not isinstance(row, dict):
             continue
         raw_name = row.get("testing_criteria")
@@ -154,18 +170,10 @@ def _collect_criteria_pass_rates(
         metric_name = _resolve_metric_name(raw_name, required_metrics)
         if metric_name is None:
             continue
-
-        passed = int(row.get("passed") or 0)
-        failed = int(row.get("failed") or 0)
-        errored = int(row.get("errored") or 0)
-        evaluated = passed + failed + errored
-        if evaluated <= 0:
-            continue
-
-        source = f"per_testing_criteria_results[{index}]"
-        collected[metric_name].append((passed / evaluated, source))
-
-    return collected
+        errored = _to_float(row.get("errored", 0))
+        if errored > 0:
+            errors.append(f"Evaluator errors for {metric_name}: {int(errored)}")
+    return errors
 
 
 def _iter_record_lists(results: Any) -> list[tuple[str, list[Any]]]:
@@ -280,6 +288,8 @@ def _load_config(config_path: Path) -> tuple[list[str], float]:
         if not isinstance(entry, str) or not entry.strip():
             continue
         name = entry.strip()
+        if name.startswith("builtin."):
+            name = name.removeprefix("builtin.")
         if name in seen:
             continue
         seen.add(name)
@@ -301,14 +311,13 @@ def validate_results(*, config_path: Path, results_path: Path) -> dict[str, Any]
     results = json.loads(results_path.read_text(encoding="utf-8"))
 
     aggregate_scores = _collect_metric_aggregates(results, required_metrics)
-    for metric, values in _collect_criteria_pass_rates(results, required_metrics).items():
-        aggregate_scores.setdefault(metric, []).extend(values)
     sample_scores = _collect_per_sample_scores(results, required_metrics)
     resolved, errors = _resolve_final_scores(
         required_metrics=required_metrics,
         aggregate_scores=aggregate_scores,
         sample_scores=sample_scores,
     )
+    errors.extend(_collect_live_evaluator_errors(results, required_metrics))
 
     metrics_summary: dict[str, dict[str, Any]] = {}
     for metric in required_metrics:

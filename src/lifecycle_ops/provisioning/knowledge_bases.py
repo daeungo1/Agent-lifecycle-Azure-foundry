@@ -347,13 +347,15 @@ def _put_operation(
         )
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        response_detail = exc.response.text.strip()[:1000]
         raise RuntimeError(
-            f"Search operation '{operation}' failed for boundary '{boundary}' ({method} request): "
-            f"HTTP {exc.response.status_code} {exc.response.text}"
+            f"Search operation '{operation}' failed for boundary '{boundary}' "
+            f"({method} request, HTTP {exc.response.status_code}): {response_detail}"
         ) from exc
-    except Exception as exc:
+    except httpx.RequestError as exc:
         raise RuntimeError(
-            f"Search operation '{operation}' failed for boundary '{boundary}' ({method} request)."
+            f"Search operation '{operation}' failed for boundary '{boundary}' "
+            f"({method} request): {exc}"
         ) from exc
 
 

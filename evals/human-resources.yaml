@@ -1,0 +1,19 @@
+name: human-resources-agent-deployment-eval
+
+agent:
+  name: human-resources-agent
+
+dataset:
+  local_uri: evals/data/human-resources.jsonl
+
+evaluators:
+  - builtin.intent_resolution
+  - builtin.task_adherence
+  - builtin.relevance
+  - builtin.groundedness
+
+options:
+  eval_model: gpt-5.4-mini
+  pass_threshold: 0.70
+  fail_on_missing_tool_call: true
+  require_grounded_citation: true

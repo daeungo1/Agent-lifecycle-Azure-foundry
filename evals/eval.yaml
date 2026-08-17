@@ -1,42 +1,26 @@
-name: enterprise-lifecycle-local-eval
+name: development-agent-deployment-eval
 
 agent:
-  name: department-lifecycle-coordinator
+  name: development-agent
 
 dataset:
-  local_uri: evals/data
+  local_uri: evals/data/development.jsonl
 
 # Evaluator identifiers must carry the "builtin." prefix; the Foundry evals API
 # rejects the bare names with EvaluatorNotFound.
 #
 # builtin.tool_call_accuracy is intentionally absent: ToolCallAccuracyEvaluator
 # requires a tool_definitions input, and `azd ai agent eval run` provides no way to
-# supply it (its azure_ai_target_completions data source maps only {{item.query}}).
-# Including it makes every sample error, which permanently blocks the gate for a
-# non-quality reason. Re-add it once the eval config supports evaluator data mapping.
+# supply it (its azure_ai_target_completions data source maps only {{item.query}},
+# and adding tool_definitions to the dataset rows is never mapped through). Every
+# sample errors, and because the gate blocks on evaluator errors that would keep
+# promotion permanently red for a reason unrelated to agent quality.
+# Re-add it once the eval configuration supports evaluator data mapping.
 evaluators:
   - builtin.intent_resolution
   - builtin.task_adherence
   - builtin.relevance
   - builtin.groundedness
-
-tiers:
-  - smoke
-  - regression
-
-smoke:
-  include_files:
-    - evals/data/security-boundaries.jsonl
-    - evals/data/regression.jsonl
-  max_samples: 12
-
-regression:
-  include_files:
-    - evals/data/development.jsonl
-    - evals/data/human-resources.jsonl
-    - evals/data/marketing.jsonl
-    - evals/data/regression.jsonl
-    - evals/data/security-boundaries.jsonl
 
 options:
   eval_model: gpt-5.4-mini

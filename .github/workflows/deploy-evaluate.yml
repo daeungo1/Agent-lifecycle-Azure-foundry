@@ -98,7 +98,26 @@ jobs:
           AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd extension list --output json > artifacts/azd-extensions.json
           if AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --help > artifacts/eval-help.txt 2>&1; then
             if grep -q -- "--config" artifacts/eval-help.txt; then
-              AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
+              gate_status=0
+              for entry in \
+                "development:evals/eval.yaml" \
+                "human-resources:evals/human-resources.yaml" \
+                "marketing:evals/marketing.yaml"; do
+                artifact_name="${entry%%:*}"
+                config_path="${entry#*:}"
+                AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval run \
+                  --config "$config_path" --no-prompt \
+                  > "artifacts/eval-${artifact_name}-run.txt"
+                AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent eval show --out-file \
+                  "artifacts/eval-${artifact_name}-results.json" --no-prompt
+                if ! python -m lifecycle_ops.evaluation.gate \
+                  --config "$config_path" \
+                  --results "artifacts/eval-${artifact_name}-results.json" \
+                  --output "artifacts/eval-${artifact_name}-gate.json"; then
+                  gate_status=1
+                fi
+              done
+              exit "$gate_status"
             else
               echo "Current evaluation command does not support --config" >&2
               cat artifacts/eval-help.txt
@@ -109,7 +128,6 @@ jobs:
             cat artifacts/eval-help.txt
             exit 1
           fi
-          python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
 
       - name: Operate
         run: |

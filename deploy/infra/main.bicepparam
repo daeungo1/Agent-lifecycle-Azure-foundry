@@ -1,6 +1,11 @@
 using './main.bicep'
 
-param location = 'eastus2'
+param location = readEnvironmentVariable('AZURE_LOCATION', 'eastus2')
+param searchLocation = readEnvironmentVariable('AZURE_SEARCH_LOCATION', 'centralus')
+param resourceGroupName = readEnvironmentVariable('AZURE_RESOURCE_GROUP', 'provider-managed-rg')
+param foundryProjectName = readEnvironmentVariable('AZURE_AI_PROJECT_NAME', 'provider-managed')
+param principalId = readEnvironmentVariable('AZURE_PRINCIPAL_ID', '')
+param principalType = readEnvironmentVariable('AZURE_PRINCIPAL_TYPE', 'User')
 param namePrefix = 'entlifecyc'
 
 param deployments = [

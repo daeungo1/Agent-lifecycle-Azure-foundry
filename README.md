@@ -9,7 +9,7 @@ This repository provides an enterprise lifecycle baseline for three department-s
 ## Architecture focus: Build -> Evaluate -> Operate
 
 - Build: GitHub OIDC build and deploy pipeline uses federated identity with no static secret requirement.
-- Evaluate: Evaluation is an explicit gate before operate promotion using `evals/eval.yaml` and `lifecycle_ops.evaluation.gate`.
+- Evaluate: Evaluation is an explicit gate before operate promotion using the three agent-specific configs under `evals/` and `lifecycle_ops.evaluation.gate`.
 - Operate: App Insights telemetry, continuous evaluation rules, and Agent365 governance verification are tracked as day-2 controls.
 
 ## Azure resource architecture
@@ -44,6 +44,7 @@ Solid paths are provisioned by Bicep or `azd`; dashed paths are post-provision b
 - `uv` installed for Python environment and dependency management.
 - `azd` installed, with Foundry extension support (`azd extension install microsoft.foundry --no-prompt`).
 - Azure subscription with quota for Foundry project and model deployment.
+- Azure AI Search capacity in `AZURE_SEARCH_LOCATION` (`centralus` by default).
 - Preview and tenant prerequisites for Agent365 governance and Graph-based role operations.
 - Required environment values (example in `.env.example`):
   - `DEPARTMENT`
@@ -92,6 +93,7 @@ python agent.py
 
 ```bash
 azd extension install microsoft.foundry --no-prompt
+azd env set AZURE_SEARCH_LOCATION centralus
 mkdir -p artifacts
 azd provision --no-prompt
 azd deploy --no-prompt
@@ -104,9 +106,18 @@ deployment evaluation gate passes.
 ## Evaluate gate
 
 ```bash
-azd ai agent eval run --config evals/eval.yaml --no-prompt --output json > artifacts/eval-results.json
-PYTHONPATH=src python -m lifecycle_ops.evaluation.gate --config evals/eval.yaml --results artifacts/eval-results.json --output artifacts/eval-gate.json
+azd ai agent eval run --config evals/eval.yaml --no-prompt > artifacts/eval-development-run.txt
+azd ai agent eval show --out-file artifacts/eval-development-results.json --no-prompt
+PYTHONPATH=src uv run --no-project --python 3.13 --prerelease=allow \
+  --with-requirements requirements-ops.txt python \
+  -m lifecycle_ops.evaluation.gate \
+  --config evals/eval.yaml \
+  --results artifacts/eval-development-results.json \
+  --output artifacts/eval-development-gate.json
 ```
+
+The deployment workflow repeats this sequence for `evals/human-resources.yaml`
+and `evals/marketing.yaml`. All three gates must pass before Operate starts.
 
 ## Operate controls
 

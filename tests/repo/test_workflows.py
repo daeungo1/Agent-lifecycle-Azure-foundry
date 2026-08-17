@@ -162,13 +162,15 @@ def test_deploy_workflow_contract() -> None:
     assert deploy_index < smoke_index < evaluate_index < operate_index
 
     assert "azd ai agent eval run" in joined
-    eval_gate_cmd = (
-        "python -m lifecycle_ops.evaluation.gate "
-        "--config evals/eval.yaml "
-        "--results artifacts/eval-results.json "
-        "--output artifacts/eval-gate.json"
-    )
-    assert eval_gate_cmd in joined
+    for config_name in (
+        "eval.yaml",
+        "human-resources.yaml",
+        "marketing.yaml",
+    ):
+        assert f"evals/{config_name}" in joined
+    assert "artifacts/eval-${artifact_name}-results.json" in joined
+    assert "artifacts/eval-${artifact_name}-gate.json" in joined
+    assert "azd ai agent eval show --out-file" in joined
     operate_step = next(step for step in steps if "operate" in str(step.get("name", "")).lower())
     operate_run = str(operate_step["run"])
     assert (

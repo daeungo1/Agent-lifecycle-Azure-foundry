@@ -51,6 +51,9 @@ type SearchBoundaryConfig = {
 @description('Azure region for all resources.')
 param location string
 
+@description('Azure region for the department-isolated Search services.')
+param searchLocation string = location
+
 @description('Name of the resource group to create and deploy resources into.')
 @minLength(1)
 @maxLength(90)
@@ -144,6 +147,7 @@ var searchTags = union(tags, {
   workload: 'foundry-iq'
   namePrefix: namePrefix
 })
+var searchNameSuffix = uniqueString(subscription().id, resourceGroupName, searchLocation)
 
 // Resources
 
@@ -186,8 +190,8 @@ module searchShared 'modules/search.bicep' = {
   name: 'search-shared'
   scope: resourceGroup
   params: {
-    name: searchServices.shared.name
-    location: location
+    name: '${searchServices.shared.name}-${searchNameSuffix}'
+    location: searchLocation
     tags: searchTags
     provisionerPrincipalId: principalId
     provisionerPrincipalType: principalType
@@ -198,8 +202,8 @@ module searchDevelopment 'modules/search.bicep' = {
   name: 'search-development'
   scope: resourceGroup
   params: {
-    name: searchServices.development.name
-    location: location
+    name: '${searchServices.development.name}-${searchNameSuffix}'
+    location: searchLocation
     tags: searchTags
     provisionerPrincipalId: principalId
     provisionerPrincipalType: principalType
@@ -210,8 +214,8 @@ module searchHumanResources 'modules/search.bicep' = {
   name: 'search-human-resources'
   scope: resourceGroup
   params: {
-    name: searchServices.humanResources.name
-    location: location
+    name: '${searchServices.humanResources.name}-${searchNameSuffix}'
+    location: searchLocation
     tags: searchTags
     provisionerPrincipalId: principalId
     provisionerPrincipalType: principalType
@@ -222,8 +226,8 @@ module searchMarketing 'modules/search.bicep' = {
   name: 'search-marketing'
   scope: resourceGroup
   params: {
-    name: searchServices.marketing.name
-    location: location
+    name: '${searchServices.marketing.name}-${searchNameSuffix}'
+    location: searchLocation
     tags: searchTags
     provisionerPrincipalId: principalId
     provisionerPrincipalType: principalType

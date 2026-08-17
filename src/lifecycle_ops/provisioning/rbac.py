@@ -4,7 +4,6 @@ import argparse
 import json
 import shutil
 import subprocess
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +63,27 @@ def _run_json_command(args: list[str]) -> Any:
     return json.loads(result.stdout)
 
 
+def build_agent_show_args(agent_name: str) -> list[str]:
+    return [
+        "azd",
+        "ai",
+        "agent",
+        "show",
+        agent_name,
+        "--output",
+        "json",
+        "--no-prompt",
+    ]
+
+
+def extract_agent_principal_id(payload: dict[str, Any], agent_name: str) -> str:
+    identity = payload.get("instance_identity")
+    principal_id = identity.get("principal_id") if isinstance(identity, dict) else None
+    if not principal_id:
+        raise RuntimeError(f"Missing instance identity principal ID for agent: {agent_name}")
+    return str(principal_id)
+
+
 def _get_project_endpoint(azd_env: dict[str, str]) -> str:
     endpoint = resolve_value("AZURE_AI_PROJECT_ENDPOINT", azd_env) or resolve_value(
         "FOUNDRY_PROJECT_ENDPOINT", azd_env
@@ -93,88 +113,15 @@ def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
     return resource_ids
 
 
-def _first_attr(obj: Any, names: list[str]) -> Any:
-    """Read the first available field, supporting attribute and mapping access.
-
-    Azure SDK models are dict-like, and some builds expose nested fields only as
-    mapping keys (and return plain dicts), so attribute access alone is not enough.
-    """
-    for name in names:
-        value = getattr(obj, name, None)
-        if value is None and isinstance(obj, Mapping):
-            value = obj.get(name)
-        if value is not None:
-            return value
-    return None
-
-
-def _iter_agents(client: Any) -> list[Any]:
-    agents_client = getattr(client, "agents", None)
-    if agents_client is None:
-        raise RuntimeError("AIProjectClient.agents is unavailable in this SDK version.")
-
-    for method_name in ["list_agents", "list"]:
-        method = getattr(agents_client, method_name, None)
-        if callable(method):
-            result = method()
-            return list(result)
-
-    raise RuntimeError("Unable to enumerate agents: no list/list_agents method was found.")
-
-
-def _agent_instance_identity(agent: Any) -> Any:
-    identity = _first_attr(agent, ["instance_identity", "instanceIdentity", "identity"])
-    if identity is not None:
-        return identity
-
-    # The list/get response keeps the managed identity on the agent version, not on
-    # the agent itself, so fall back to the latest version.
-    versions = _first_attr(agent, ["versions"])
-    latest = _first_attr(versions, ["latest"]) if versions is not None else None
-    if latest is None:
-        return None
-    return _first_attr(latest, ["instance_identity", "instanceIdentity", "identity"])
-
-
-def _extract_principal_ids(all_agents: list[Any]) -> dict[str, str]:
+def get_agent_principal_ids(_project_endpoint: str) -> dict[str, str]:
     principal_ids: dict[str, str] = {}
-    for agent in all_agents:
-        name = _first_attr(agent, ["name"])
-        if name not in DEPARTMENT_BY_AGENT:
-            continue
-
-        identity = _agent_instance_identity(agent)
-        principal_id = _first_attr(
-            identity,
-            ["principal_id", "principalId", "object_id", "objectId"],
-        )
-        if principal_id:
-            principal_ids[name] = str(principal_id)
-
-    missing_agents = [name for name in DEPARTMENT_BY_AGENT if name not in principal_ids]
-    if missing_agents:
-        raise RuntimeError(
-            "Missing instance identity principal IDs for deployed agents: "
-            + ", ".join(missing_agents)
-        )
+    for agent_name in DEPARTMENT_BY_AGENT:
+        payload = _run_json_command(build_agent_show_args(agent_name))
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Unable to load deployed agent: {agent_name}")
+        principal_ids[agent_name] = extract_agent_principal_id(payload, agent_name)
 
     return principal_ids
-
-
-def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
-    from azure.ai.projects import AIProjectClient
-    from azure.identity import DefaultAzureCredential
-
-    credential = DefaultAzureCredential()
-    try:
-        client = AIProjectClient(endpoint=project_endpoint, credential=credential)
-        all_agents = _iter_agents(client)
-    finally:
-        close = getattr(credential, "close", None)
-        if callable(close):
-            close()
-
-    return _extract_principal_ids(all_agents)
 
 
 def build_role_assignment_list_args(*, principal_id: str, scope: str, role_name: str) -> list[str]:

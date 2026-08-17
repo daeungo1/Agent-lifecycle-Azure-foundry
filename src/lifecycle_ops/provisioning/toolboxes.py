@@ -109,16 +109,19 @@ def build_connection_create_args(*, connection_name: str, endpoint: str) -> list
     ]
 
 
-def build_connection_show_args(connection_name: str) -> list[str]:
+def build_connection_show_args(project_id: str, connection_name: str) -> list[str]:
     return [
-        "azd",
-        "ai",
-        "connection",
-        "show",
-        connection_name,
+        "az",
+        "rest",
+        "--method",
+        "get",
+        "--url",
+        (
+            f"https://management.azure.com{project_id}/connections/{connection_name}"
+            "?api-version=2025-04-01-preview"
+        ),
         "--output",
         "json",
-        "--no-prompt",
     ]
 
 
@@ -463,6 +466,7 @@ def _connection_exists(payload: Any, connection_name: str) -> bool:
 
 def ensure_remote_tool_connection(
     *,
+    project_id: str,
     connection_name: str,
     target: str,
     dry_run: bool = False,
@@ -478,11 +482,12 @@ def ensure_remote_tool_connection(
             )
         return
 
-    details = _run_json(build_connection_show_args(connection_name))
+    resource = _run_json(build_connection_show_args(project_id, connection_name))
+    details = resource.get("properties") if isinstance(resource, dict) else None
     if not isinstance(details, dict):
         raise ValueError(
             f"Connection '{connection_name}' exists but details could not be loaded "
-            "with 'azd ai connection show'. Resolve manually and rerun."
+            "from its ARM resource. Resolve manually and rerun."
         )
     validate_remote_tool_connection(
         connection_name=connection_name,
@@ -599,6 +604,9 @@ def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
     project_endpoint = _require_project_endpoint(
         resolve_value("FOUNDRY_PROJECT_ENDPOINT", env_values)
     )
+    project_id = resolve_value("AZURE_AI_PROJECT_ID", env_values)
+    if not project_id:
+        raise ValueError("Missing required azd environment value: AZURE_AI_PROJECT_ID")
     boundaries = ("shared", *department_names())
     endpoints: dict[str, str] = {}
     for boundary in boundaries:
@@ -610,6 +618,7 @@ def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
 
     for boundary in boundaries:
         ensure_remote_tool_connection(
+            project_id=project_id,
             connection_name=connection_name_for_boundary(boundary),
             target=endpoints[boundary],
             dry_run=dry_run,
