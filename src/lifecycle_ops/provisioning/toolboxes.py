@@ -21,6 +21,10 @@ from lifecycle_ops.naming import (
 
 AUDIENCE = "https://search.azure.com"
 
+# 'agentic-identity' is the value passed to `azd ai connection create`; the service
+# reports it back as 'AgenticIdentityToken'. Both denote the same auth type.
+ACCEPTED_AUTH_TYPES = frozenset({"agenticidentity", "agenticidentitytoken"})
+
 BOUNDARY_TO_ENV_SUFFIX = {
     "shared": "SHARED",
     **{department: env_suffix(department) for department in department_names()},
@@ -435,9 +439,10 @@ def validate_remote_tool_connection(
         drift.append(f"kind='{kind}' expected='remote-tool'")
     if _normalize_endpoint(target) != _normalize_endpoint(expected_target):
         drift.append(f"target='{target}' expected='{expected_target}'")
-    if _normalize_alphanumeric(auth_type) != "agenticidentity":
+    if _normalize_alphanumeric(auth_type) not in ACCEPTED_AUTH_TYPES:
         drift.append(f"authType='{auth_type}' expected='agentic-identity'")
-    if _normalize_endpoint(audience) != _normalize_endpoint(AUDIENCE):
+    # The connection API does not echo the audience, so only compare it when reported.
+    if audience and _normalize_endpoint(audience) != _normalize_endpoint(AUDIENCE):
         drift.append(f"audience='{audience}' expected='{AUDIENCE}'")
 
     if drift:

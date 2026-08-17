@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +55,10 @@ def _load_active_azd_environment() -> dict[str, str]:
 
 
 def _run_json_command(args: list[str]) -> Any:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT,
+    # so the program has to be resolved to a real path before spawning.
+    if args:
+        args = [shutil.which(args[0]) or args[0], *args[1:]]
     result = subprocess.run(args, check=True, capture_output=True, text=True)
     if not result.stdout.strip():
         return None
@@ -92,11 +98,17 @@ def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
 
 
 def _first_attr(obj: Any, names: list[str]) -> Any:
+    """Read the first available field, supporting attribute and mapping access.
+
+    Azure SDK models are dict-like, and some builds expose nested fields only as
+    mapping keys (and return plain dicts), so attribute access alone is not enough.
+    """
     for name in names:
-        if hasattr(obj, name):
-            value = getattr(obj, name)
-            if value is not None:
-                return value
+        value = getattr(obj, name, None)
+        if value is None and isinstance(obj, Mapping):
+            value = obj.get(name)
+        if value is not None:
+            return value
     return None
 
 
@@ -114,26 +126,28 @@ def _iter_agents(client: Any) -> list[Any]:
     raise RuntimeError("Unable to enumerate agents: no list/list_agents method was found.")
 
 
-def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
-    from azure.ai.projects import AIProjectClient
-    from azure.identity import DefaultAzureCredential
+def _agent_instance_identity(agent: Any) -> Any:
+    identity = _first_attr(agent, ["instance_identity", "instanceIdentity", "identity"])
+    if identity is not None:
+        return identity
 
-    credential = DefaultAzureCredential()
-    try:
-        client = AIProjectClient(endpoint=project_endpoint, credential=credential)
-        all_agents = _iter_agents(client)
-    finally:
-        close = getattr(credential, "close", None)
-        if callable(close):
-            close()
+    # The list/get response keeps the managed identity on the agent version, not on
+    # the agent itself, so fall back to the latest version.
+    versions = _first_attr(agent, ["versions"])
+    latest = _first_attr(versions, ["latest"]) if versions is not None else None
+    if latest is None:
+        return None
+    return _first_attr(latest, ["instance_identity", "instanceIdentity", "identity"])
 
+
+def _extract_principal_ids(all_agents: list[Any]) -> dict[str, str]:
     principal_ids: dict[str, str] = {}
     for agent in all_agents:
         name = _first_attr(agent, ["name"])
         if name not in DEPARTMENT_BY_AGENT:
             continue
 
-        identity = _first_attr(agent, ["instance_identity", "instanceIdentity", "identity"])
+        identity = _agent_instance_identity(agent)
         principal_id = _first_attr(
             identity,
             ["principal_id", "principalId", "object_id", "objectId"],
@@ -149,6 +163,22 @@ def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
         )
 
     return principal_ids
+
+
+def get_agent_principal_ids(project_endpoint: str) -> dict[str, str]:
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    try:
+        client = AIProjectClient(endpoint=project_endpoint, credential=credential)
+        all_agents = _iter_agents(client)
+    finally:
+        close = getattr(credential, "close", None)
+        if callable(close):
+            close()
+
+    return _extract_principal_ids(all_agents)
 
 
 def build_role_assignment_list_args(*, principal_id: str, scope: str, role_name: str) -> list[str]:

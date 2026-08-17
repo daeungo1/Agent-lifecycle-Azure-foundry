@@ -185,7 +185,6 @@ def _build_index_payload(index_name: str) -> dict[str, Any]:
                 }
             ],
         },
-        "defaultSemanticConfiguration": SEMANTIC_CONFIGURATION_NAME,
     }
 
 
@@ -347,6 +346,11 @@ def _put_operation(
             timeout=30,
         )
         response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(
+            f"Search operation '{operation}' failed for boundary '{boundary}' ({method} request): "
+            f"HTTP {exc.response.status_code} {exc.response.text}"
+        ) from exc
     except Exception as exc:
         raise RuntimeError(
             f"Search operation '{operation}' failed for boundary '{boundary}' ({method} request)."

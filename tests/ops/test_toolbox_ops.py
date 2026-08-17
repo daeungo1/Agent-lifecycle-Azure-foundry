@@ -308,6 +308,48 @@ def test_validate_remote_tool_connection_treats_default_https_port_as_equivalent
     )
 
 
+def test_validate_remote_tool_connection_accepts_service_response_shape() -> None:
+    # 'azd ai connection show' echoes the service representation: the auth type is
+    # reported as 'AgenticIdentityToken' and no 'audience' field is returned at all.
+    toolboxes.validate_remote_tool_connection(
+        connection_name="kb-shared-remote-tool",
+        expected_target="https://example.test/knowledgebases/shared/mcp",
+        details={
+            "name": "kb-shared-remote-tool",
+            "kind": "RemoteTool",
+            "authType": "AgenticIdentityToken",
+            "target": "https://example.test/knowledgebases/shared/mcp",
+        },
+    )
+
+
+def test_validate_remote_tool_connection_rejects_unexpected_auth_type() -> None:
+    with pytest.raises(ValueError, match="authType='ApiKey'"):
+        toolboxes.validate_remote_tool_connection(
+            connection_name="kb-shared-remote-tool",
+            expected_target="https://example.test/knowledgebases/shared/mcp",
+            details={
+                "kind": "RemoteTool",
+                "authType": "ApiKey",
+                "target": "https://example.test/knowledgebases/shared/mcp",
+            },
+        )
+
+
+def test_validate_remote_tool_connection_rejects_wrong_audience_when_reported() -> None:
+    with pytest.raises(ValueError, match="audience='https://wrong.test'"):
+        toolboxes.validate_remote_tool_connection(
+            connection_name="kb-shared-remote-tool",
+            expected_target="https://example.test/knowledgebases/shared/mcp",
+            details={
+                "kind": "RemoteTool",
+                "authType": "AgenticIdentityToken",
+                "target": "https://example.test/knowledgebases/shared/mcp",
+                "audience": "https://wrong.test",
+            },
+        )
+
+
 def test_ensure_remote_tool_connection_creates_missing_connection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

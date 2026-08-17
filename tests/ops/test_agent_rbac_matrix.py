@@ -17,6 +17,85 @@ from lifecycle_ops.provisioning.rbac import (
 )
 
 
+def _fake_agent(name: str, principal_id: str | None) -> SimpleNamespace:
+    """Mirror the SDK shape: identity lives on the latest version, not on the agent."""
+    latest = SimpleNamespace(
+        instance_identity=SimpleNamespace(principal_id=principal_id) if principal_id else None
+    )
+    return SimpleNamespace(
+        name=name,
+        instance_identity=None,
+        versions=SimpleNamespace(latest=latest),
+    )
+
+
+def test_get_agent_principal_ids_reads_identity_from_latest_version() -> None:
+    agents = [
+        _fake_agent("development-agent", "p-dev"),
+        _fake_agent("human-resources-agent", "p-hr"),
+        _fake_agent("marketing-agent", "p-mkt"),
+    ]
+
+    assert target._extract_principal_ids(agents) == {
+        "development-agent": "p-dev",
+        "human-resources-agent": "p-hr",
+        "marketing-agent": "p-mkt",
+    }
+
+
+def test_get_agent_principal_ids_still_raises_when_identity_absent() -> None:
+    agents = [
+        _fake_agent("development-agent", "p-dev"),
+        _fake_agent("human-resources-agent", None),
+        _fake_agent("marketing-agent", "p-mkt"),
+    ]
+
+    with pytest.raises(RuntimeError, match="human-resources-agent"):
+        target._extract_principal_ids(agents)
+
+
+def test_run_json_command_resolves_executable_via_pathext(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # On Windows the Azure CLI is 'az.cmd'; subprocess does not apply PATHEXT, so the
+    # program has to be resolved before spawning or the hook dies with WinError 2.
+    monkeypatch.setattr(
+        target.shutil,
+        "which",
+        lambda program: r"C:\tools\az.cmd" if program == "az" else None,
+    )
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args, **_kwargs):
+        captured["args"] = args
+        return SimpleNamespace(stdout="[]")
+
+    monkeypatch.setattr(target.subprocess, "run", fake_run)
+
+    assert target._run_json_command(["az", "role", "assignment", "list"]) == []
+    assert captured["args"] == [r"C:\tools\az.cmd", "role", "assignment", "list"]
+
+
+def _mapping_style_agent(name: str, principal_id: str) -> SimpleNamespace:
+    """Older SDK builds expose nested version fields only as mapping keys."""
+    latest = {"instance_identity": {"principal_id": principal_id}}
+    return SimpleNamespace(name=name, versions={"latest": latest})
+
+
+def test_get_agent_principal_ids_supports_mapping_style_sdk_models() -> None:
+    agents = [
+        _mapping_style_agent("development-agent", "p-dev"),
+        _mapping_style_agent("human-resources-agent", "p-hr"),
+        _mapping_style_agent("marketing-agent", "p-mkt"),
+    ]
+
+    assert target._extract_principal_ids(agents) == {
+        "development-agent": "p-dev",
+        "human-resources-agent": "p-hr",
+        "marketing-agent": "p-mkt",
+    }
+
+
 def test_desired_scope_matrix_grants_shared_plus_own_only() -> None:
     principal_ids = {
         "development-agent": "11111111-1111-1111-1111-111111111111",

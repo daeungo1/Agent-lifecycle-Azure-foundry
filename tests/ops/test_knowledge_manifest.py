@@ -161,6 +161,24 @@ def test_index_payload_includes_semantic_configuration_for_ga_knowledge_sources(
     }
 
 
+def test_index_payload_omits_properties_rejected_by_search_api() -> None:
+    names = build_artifact_names(prefix="enterprise-lifecycle", boundary="shared")
+    documents = load_boundary_documents("shared")
+    operations = build_rest_operations(
+        boundary="shared",
+        endpoint="https://example.search.windows.net",
+        names=names,
+        documents=documents,
+    )
+
+    index_payload = operations[0]["body"]
+    # The Search index definition only accepts the default semantic configuration
+    # nested under "semantic"; a top-level key makes the service reject the PUT
+    # with 400 "The property 'defaultSemanticConfiguration' does not exist".
+    assert "defaultSemanticConfiguration" not in index_payload
+    assert set(index_payload) == {"name", "fields", "semantic"}
+
+
 def test_parse_front_matter_supports_crlf_newlines() -> None:
     sample = "---\r\ntitle: Doc\r\nclassification: shared\r\n---\r\nHello\r\nworld\r\n"
     metadata, body = pkb._parse_front_matter(sample)
