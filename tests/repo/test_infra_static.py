@@ -216,3 +216,16 @@ def test_observability_module_is_not_wired_into_the_unused_provider_template() -
     main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
 
     assert "modules/observability.bicep" not in main_bicep
+
+
+def test_project_identity_is_granted_foundry_user_for_continuous_evaluation() -> None:
+    """The Operate stage cannot register evaluation rules without this role.
+
+    Foundry rejects `evaluation_rules.create_or_update` with "Project managed identity
+    lacks Foundry User role on the project".
+    """
+    resources_bicep = _infra_path("modules", "resources.bicep").read_text(encoding="utf-8")
+
+    # Foundry User
+    assert "53ca6127-db72-4b80-b1b0-d745d6d5456d" in resources_bicep
+    assert "foundryAccount::project.identity.principalId" in resources_bicep

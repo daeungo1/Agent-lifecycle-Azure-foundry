@@ -136,6 +136,14 @@ var cognitiveServicesUserRoleId = subscriptionResourceId(
   'a97b65f3-24c7-4388-baec-2e87135dc908'
 )
 
+// Foundry User. The project's own managed identity needs it to register and run
+// continuous evaluation rules; without it evaluation_rules.create_or_update fails
+// with "Project managed identity lacks Foundry User role on the project".
+var foundryUserRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+)
+
 // Resources
 
 // Customer VNet wiring: reference the VNet and create or reference the agent
@@ -313,6 +321,18 @@ resource developerCognitiveServicesUser 'Microsoft.Authorization/roleAssignments
     principalId: principalId
     principalType: principalType
     roleDefinitionId: cognitiveServicesUserRoleId
+  }
+}
+
+// Grant the project's own managed identity Foundry User on the project so the
+// Operate stage can register and execute continuous evaluation rules.
+resource projectFoundryUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(foundryAccount::project.id, 'project-identity', foundryUserRoleId)
+  scope: foundryAccount::project
+  properties: {
+    principalId: foundryAccount::project.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: foundryUserRoleId
   }
 }
 
