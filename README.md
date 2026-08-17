@@ -57,7 +57,8 @@ Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 
 
 같은 수명주기를 세 부서가 각자 돌립니다.
 각 부서는 coordinator 1개와 specialist 2개로 구성되고, 자기 부서 툴박스를 통해서만 지식에 접근합니다.
-툴박스는 **공용 경계 + 자기 부서 경계** 두 개만 연결하므로 교차 조회가 구조적으로 차단됩니다.
+툴박스는 **Shared Knowledge Base + 자기 부서 Knowledge Base** 두 개에만 연결되므로,
+다른 부서 Knowledge Base로는 경로 자체가 없어 교차 조회가 구조적으로 차단됩니다.
 
 ![Department agent scenario](docs/architecture/department-scenario.svg)
 
@@ -70,7 +71,7 @@ Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 
 | 리소스 | 역할 |
 | --- | --- |
 | Foundry 계정 · 프로젝트 | Hosted Agent 실행과 모델 배포(`gpt-5.4-mini`) |
-| Azure AI Search × 4 | 공용 1 + 부서 3. **Foundry IQ** 지식 베이스의 보안 경계 |
+| Azure AI Search × 4 | Shared 1 + 부서 3. **Foundry IQ** Knowledge Base의 격리 단위 |
 | Foundry 툴박스 × 3 | 부서별 MCP 도구 묶음. 연결은 Agentic Identity 사용 |
 | Application Insights + Log Analytics | 에이전트 추적. 프로젝트 연결로 Foundry 포털에 노출 |
 | Entra · RBAC | 에이전트 관리 ID별 최소 권한 부여 |
@@ -176,7 +177,7 @@ union dependencies, requests, traces
 ## 보안
 
 - Entra ID 기반 인증만 사용하고 Search는 로컬 인증을 비활성화합니다.
-- 부서 에이전트는 공용 경계와 자기 부서 경계에만 `Search Index Data Reader`를 가집니다.
+- 부서 에이전트는 Shared Knowledge Base와 자기 부서 Knowledge Base에만 `Search Index Data Reader`를 가집니다.
 - 사용자 위임 접근이 필요하면 툴박스 OAuth 패스스루(OBO)를 사용합니다. 상세는
   [docs/identity-and-access.md](docs/identity-and-access.md)를 참고하세요.
 - 정적 자격 증명을 소스·프롬프트·로그·에이전트 캐시에 저장하지 않습니다.

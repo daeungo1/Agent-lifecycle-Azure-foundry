@@ -47,6 +47,9 @@ def _class_font_sizes(source: str) -> dict[str, float]:
 
 
 def _font_size(element: ET.Element, sizes: dict[str, float]) -> float:
+    explicit = element.get("font-size")
+    if explicit:
+        return float(explicit.removesuffix("px"))
     for name in (element.get("class") or "").split():
         if name in sizes:
             return sizes[name]
@@ -103,11 +106,16 @@ def test_architecture_diagram_text_stays_inside_its_box(diagram: str) -> None:
         y = float(element.get("y", 0))
         right = x + _text_width(value, _font_size(element, sizes))
 
-        for box_x, box_y, box_width, box_height in boxes:
-            inside = box_x <= x <= box_x + box_width and box_y <= y <= box_y + box_height
-            if inside:
-                assert right <= box_x + box_width - 4, f"{diagram}: text escapes its box: {value}"
-                break
+        # Boxes nest, so measure against the tightest one that contains the anchor.
+        containing = [
+            box
+            for box in boxes
+            if box[0] <= x <= box[0] + box[2] and box[1] <= y <= box[1] + box[3]
+        ]
+        if not containing:
+            continue
+        box_x, _, box_width, _ = min(containing, key=lambda box: box[2] * box[3])
+        assert right <= box_x + box_width - 4, f"{diagram}: text escapes its box: {value}"
 
 
 def test_readme_embeds_the_three_architecture_views() -> None:
