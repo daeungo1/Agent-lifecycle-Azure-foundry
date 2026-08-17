@@ -233,3 +233,49 @@ evaluators:
     assert code == 0
     assert data["status"] == "success"
     assert data["metrics"]["relevance"]["score"] == pytest.approx(0.85)
+
+
+def test_live_foundry_result_counts_fail_on_evaluator_errors(tmp_path: Path) -> None:
+    config = tmp_path / "eval.yaml"
+    results = tmp_path / "eval-results.json"
+    output = tmp_path / "gate.json"
+    config.write_text(
+        """
+options:
+  pass_threshold: 0.70
+evaluators:
+  - builtin.intent_resolution
+  - builtin.tool_call_accuracy
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    _write(
+        results,
+        {
+            "status": "completed",
+            "per_testing_criteria_results": [
+                {
+                    "testing_criteria": "intent_resolution",
+                    "passed": 5,
+                    "failed": 0,
+                    "errored": 0,
+                    "skipped": 0,
+                },
+                {
+                    "testing_criteria": "tool_call_accuracy",
+                    "passed": 0,
+                    "failed": 0,
+                    "errored": 5,
+                    "skipped": 0,
+                },
+            ],
+        },
+    )
+
+    code, data = _run(config, results, output)
+
+    assert code != 0
+    assert data["metrics"]["intent_resolution"]["score"] == pytest.approx(1.0)
+    assert data["metrics"]["tool_call_accuracy"]["score"] == pytest.approx(0.0)
+    assert any("tool_call_accuracy" in item and "5" in item for item in data["errors"])

@@ -1,7 +1,7 @@
 name: enterprise-agent-lifecycle
 
 infra:
-  provider: microsoft.foundry
+  provider: bicep
   path: deploy/infra
 
 hooks:

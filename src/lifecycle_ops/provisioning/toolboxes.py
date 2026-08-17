@@ -105,16 +105,19 @@ def build_connection_create_args(*, connection_name: str, endpoint: str) -> list
     ]
 
 
-def build_connection_show_args(connection_name: str) -> list[str]:
+def build_connection_show_args(project_id: str, connection_name: str) -> list[str]:
     return [
-        "azd",
-        "ai",
-        "connection",
-        "show",
-        connection_name,
+        "az",
+        "rest",
+        "--method",
+        "get",
+        "--url",
+        (
+            f"https://management.azure.com{project_id}/connections/{connection_name}"
+            "?api-version=2025-04-01-preview"
+        ),
         "--output",
         "json",
-        "--no-prompt",
     ]
 
 
@@ -435,7 +438,10 @@ def validate_remote_tool_connection(
         drift.append(f"kind='{kind}' expected='remote-tool'")
     if _normalize_endpoint(target) != _normalize_endpoint(expected_target):
         drift.append(f"target='{target}' expected='{expected_target}'")
-    if _normalize_alphanumeric(auth_type) != "agenticidentity":
+    if _normalize_alphanumeric(auth_type) not in {
+        "agenticidentity",
+        "agenticidentitytoken",
+    }:
         drift.append(f"authType='{auth_type}' expected='agentic-identity'")
     if _normalize_endpoint(audience) != _normalize_endpoint(AUDIENCE):
         drift.append(f"audience='{audience}' expected='{AUDIENCE}'")
@@ -458,6 +464,7 @@ def _connection_exists(payload: Any, connection_name: str) -> bool:
 
 def ensure_remote_tool_connection(
     *,
+    project_id: str,
     connection_name: str,
     target: str,
     dry_run: bool = False,
@@ -473,11 +480,12 @@ def ensure_remote_tool_connection(
             )
         return
 
-    details = _run_json(build_connection_show_args(connection_name))
+    resource = _run_json(build_connection_show_args(project_id, connection_name))
+    details = resource.get("properties") if isinstance(resource, dict) else None
     if not isinstance(details, dict):
         raise ValueError(
             f"Connection '{connection_name}' exists but details could not be loaded "
-            "with 'azd ai connection show'. Resolve manually and rerun."
+            "from its ARM resource. Resolve manually and rerun."
         )
     validate_remote_tool_connection(
         connection_name=connection_name,
@@ -592,6 +600,9 @@ def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
     _ensure_azd_support()
     env_values = get_values()
     project_endpoint = _require_project_endpoint(env_values.get("FOUNDRY_PROJECT_ENDPOINT", ""))
+    project_id = env_values.get("AZURE_AI_PROJECT_ID", "")
+    if not project_id:
+        raise ValueError("Missing required azd environment value: AZURE_AI_PROJECT_ID")
     boundaries = ("shared", *department_names())
     for boundary in boundaries:
         env_name = kb_mcp_endpoint_env_var(boundary)
@@ -601,6 +612,7 @@ def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
 
     for boundary in boundaries:
         ensure_remote_tool_connection(
+            project_id=project_id,
             connection_name=connection_name_for_boundary(boundary),
             target=env_values[kb_mcp_endpoint_env_var(boundary)],
             dry_run=dry_run,

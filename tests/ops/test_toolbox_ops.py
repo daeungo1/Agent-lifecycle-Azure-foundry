@@ -98,13 +98,22 @@ def test_toolbox_create_and_publish_args_are_non_interactive() -> None:
 
 
 def test_connection_verify_args_use_show_and_list_not_update() -> None:
-    show_args = build_connection_show_args("kb-shared-remote-tool")
+    project_id = (
+        "/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/"
+        "accounts/a1/projects/p1"
+    )
+    show_args = build_connection_show_args(project_id, "kb-shared-remote-tool")
     assert_args = build_connection_assert_args("kb-shared-remote-tool")
 
-    assert show_args[:4] == ["azd", "ai", "connection", "show"]
-    assert show_args[4] == "kb-shared-remote-tool"
-    assert "--output" in show_args
-    assert "json" in show_args
+    assert show_args[:4] == ["az", "rest", "--method", "get"]
+    assert show_args[4:6] == [
+        "--url",
+        (
+            "https://management.azure.com"
+            f"{project_id}/connections/kb-shared-remote-tool"
+            "?api-version=2025-04-01-preview"
+        ),
+    ]
     assert "update" not in " ".join(show_args)
     assert assert_args[:4] == ["azd", "ai", "connection", "list"]
 
@@ -308,6 +317,19 @@ def test_validate_remote_tool_connection_treats_default_https_port_as_equivalent
     )
 
 
+def test_validate_remote_tool_connection_accepts_arm_agentic_identity_token() -> None:
+    toolboxes.validate_remote_tool_connection(
+        connection_name="kb-development-remote-tool",
+        expected_target="https://example.test/knowledgebases/dev/mcp",
+        details={
+            "category": "RemoteTool",
+            "target": "https://example.test/knowledgebases/dev/mcp",
+            "authType": "AgenticIdentityToken",
+            "audience": AUDIENCE,
+        },
+    )
+
+
 def test_ensure_remote_tool_connection_creates_missing_connection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -320,6 +342,7 @@ def test_ensure_remote_tool_connection_creates_missing_connection(
     )
 
     toolboxes.ensure_remote_tool_connection(
+        project_id="/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/accounts/a1/projects/p1",
         connection_name="kb-development-remote-tool",
         target="https://example.test/knowledgebases/dev/mcp",
     )
@@ -329,6 +352,47 @@ def test_ensure_remote_tool_connection_creates_missing_connection(
             connection_name="kb-development-remote-tool",
             endpoint="https://example.test/knowledgebases/dev/mcp",
         )
+    ]
+
+
+def test_ensure_remote_tool_connection_validates_existing_arm_properties(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_id = (
+        "/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/"
+        "accounts/a1/projects/p1"
+    )
+    commands: list[list[str]] = []
+
+    def fake_run_json(command: list[str], **kwargs: object) -> object:
+        commands.append(command)
+        if command == toolboxes.build_connection_list_args():
+            return [{"name": "kb-development-remote-tool"}]
+        if command == build_connection_show_args(
+            project_id,
+            "kb-development-remote-tool",
+        ):
+            return {
+                "properties": {
+                    "category": "RemoteTool",
+                    "target": "https://example.test/knowledgebases/dev/mcp",
+                    "authType": "AgenticIdentityToken",
+                    "audience": AUDIENCE,
+                }
+            }
+        raise AssertionError(f"Unexpected command: {command}")
+
+    monkeypatch.setattr(toolboxes, "_run_json", fake_run_json)
+
+    toolboxes.ensure_remote_tool_connection(
+        project_id=project_id,
+        connection_name="kb-development-remote-tool",
+        target="https://example.test/knowledgebases/dev/mcp",
+    )
+
+    assert commands == [
+        toolboxes.build_connection_list_args(),
+        build_connection_show_args(project_id, "kb-development-remote-tool"),
     ]
 
 
@@ -450,6 +514,10 @@ def test_configure_toolboxes_preserves_connection_then_toolbox_order(
     events: list[tuple[str, str]] = []
     env = {
         "FOUNDRY_PROJECT_ENDPOINT": "https://example.services.ai.azure.com/api/projects/p1",
+        "AZURE_AI_PROJECT_ID": (
+            "/subscriptions/s1/resourceGroups/rg1/providers/Microsoft.CognitiveServices/"
+            "accounts/a1/projects/p1"
+        ),
         "KB_MCP_ENDPOINT_SHARED": "https://example.test/shared",
         "KB_MCP_ENDPOINT_DEVELOPMENT": "https://example.test/development",
         "KB_MCP_ENDPOINT_HUMAN_RESOURCES": "https://example.test/human-resources",
@@ -460,7 +528,7 @@ def test_configure_toolboxes_preserves_connection_then_toolbox_order(
     monkeypatch.setattr(
         toolboxes,
         "ensure_remote_tool_connection",
-        lambda *, connection_name, target, dry_run=False: events.append(
+        lambda *, project_id, connection_name, target, dry_run=False: events.append(
             ("connection", connection_name)
         ),
     )
