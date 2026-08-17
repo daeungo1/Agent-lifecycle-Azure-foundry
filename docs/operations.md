@@ -23,19 +23,34 @@ union dependencies, requests, traces
 | order by events desc
 ```
 
-### Why observability is provisioned by a hook, not by `azd provision`
+### Why observability is provisioned by a hook
 
-The `microsoft.foundry` provider synthesises its own ARM template containing only the
-Foundry account, project and model deployment. Resources declared in
-`deploy/infra/main.bicep` are never sent to ARM — exporting the deployed template shows
-none of them. `deploy/infra/modules/observability.bicep` is therefore deployed by
-`lifecycle_ops.provisioning.observability` from the `postprovision` hook, the same way
-knowledge bases, toolboxes and RBAC are. It runs first because the agents read the
-connection string at deploy time.
+`azure.yaml` now uses the built-in `bicep` provider, so `deploy/infra/main.bicep` is
+deployed as written. The `microsoft.foundry` provider it replaced synthesised its own ARM
+template containing only the Foundry account, project and model deployment: resources
+declared in `main.bicep` — the four Search services, role assignments, everything — were
+silently dropped, which is why exporting a deployment made under that provider shows none
+of them.
 
-The same limitation applies to the four Search services declared in `main.bicep`: they
-exist only because an earlier deployment created them. Treat `main.bicep` as inert for
-anything beyond the account, project and model deployment.
+`deploy/infra/modules/observability.bicep` is still deployed by
+`lifecycle_ops.provisioning.observability` from the `postprovision` hook rather than from
+`main.bicep`. The hook publishes `APPLICATIONINSIGHTS_CONNECTION_STRING` to the azd
+environment, which `azure.yaml` then forwards to the agents at deploy time, and it keeps
+working on environments that predate the provider switch. It runs before the knowledge
+base and toolbox steps.
+
+### Migrating an environment created under the foundry provider
+
+The Foundry account in such an environment was named by that provider, and the Search
+services were created before names carried a deterministic suffix. Neither matches what
+`main.bicep` computes, so `azd provision --preview` reports the existing resources as
+`Skip` and proposes `Create` for a differently named account and four suffixed Search
+services. That is a migration, not an in-place update: running it leaves the old resources
+in place and bills for both sets.
+
+Before provisioning such an environment, decide whether to migrate to the new names and
+decommission the old resources, or to keep the existing environment and deploy only agent
+code with `azd deploy`.
 
 ## Foundry Monitor Workflow
 
