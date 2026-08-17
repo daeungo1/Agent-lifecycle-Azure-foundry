@@ -18,6 +18,7 @@ DIAGRAMS = (
     "lifecycle-stages.svg",
     "department-scenario.svg",
     "azure-resources.svg",
+    "enterprise-detailed-architecture.svg",
 )
 
 

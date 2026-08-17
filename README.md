@@ -89,6 +89,15 @@ Build에서 만든 것을 Evaluate가 검증하고, 통과한 뒤에만 Operate 
 
 ---
 
+## 아키텍처 4. 전체 상세
+
+배포 파이프라인부터 관측까지 다섯 계층을 한 장으로 본 그림입니다.
+azd가 인프라를 만들고 훅이 지식과 권한을 채운 뒤, 게이트를 통과한 에이전트만 운영 제어에 연결됩니다.
+
+![Enterprise detailed architecture](docs/architecture/enterprise-detailed-architecture.svg)
+
+---
+
 ## 저장소 구조
 
 ```text
