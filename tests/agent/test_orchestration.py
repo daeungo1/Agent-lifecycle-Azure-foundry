@@ -43,7 +43,7 @@ def _department() -> DepartmentConfig:
     )
 
 
-def test_build_toolbox_is_authenticated_and_lazy(monkeypatch) -> None:
+def test_build_toolbox_loads_tools_and_authenticates(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
     class FakeMCPStreamableHTTPTool:
@@ -61,7 +61,9 @@ def test_build_toolbox_is_authenticated_and_lazy(monkeypatch) -> None:
     assert isinstance(tool, FakeMCPStreamableHTTPTool)
     assert captured["name"] == "department-toolbox"
     assert captured["url"] == "https://example.toolbox"
-    assert captured["load_tools"] is False
+    # Tools must be loaded: with load_tools=False the department knowledge tools are
+    # never advertised to the model and every call raises ToolExecutionException.
+    assert captured["load_tools"] is True
     assert captured["load_prompts"] is False
 
     headers = captured["header_provider"]({})

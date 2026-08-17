@@ -11,7 +11,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
-from lifecycle_ops.azd_env import get_values, set_value
+from lifecycle_ops.azd_env import get_values, resolve_value, set_value
 from lifecycle_ops.naming import (
     department_names,
     env_suffix,
@@ -596,18 +596,22 @@ def upsert_toolbox(
 def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
     _ensure_azd_support()
     env_values = get_values()
-    project_endpoint = _require_project_endpoint(env_values.get("FOUNDRY_PROJECT_ENDPOINT", ""))
+    project_endpoint = _require_project_endpoint(
+        resolve_value("FOUNDRY_PROJECT_ENDPOINT", env_values)
+    )
     boundaries = ("shared", *department_names())
+    endpoints: dict[str, str] = {}
     for boundary in boundaries:
         env_name = kb_mcp_endpoint_env_var(boundary)
-        endpoint = env_values.get(env_name, "")
+        endpoint = resolve_value(env_name, env_values)
         if not endpoint:
             raise ValueError(f"Missing required azd environment value: {env_name}")
+        endpoints[boundary] = endpoint
 
     for boundary in boundaries:
         ensure_remote_tool_connection(
             connection_name=connection_name_for_boundary(boundary),
-            target=env_values[kb_mcp_endpoint_env_var(boundary)],
+            target=endpoints[boundary],
             dry_run=dry_run,
         )
 

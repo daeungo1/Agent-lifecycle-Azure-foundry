@@ -65,3 +65,41 @@ def test_set_value_uses_noninteractive_azd_command(
             "--no-prompt",
         ]
     ]
+
+
+def test_resolve_value_matches_azd_mangled_output_casing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # azd restores ARM output names with inconsistent casing, e.g. the Bicep output
+    # FOUNDRYIQ_SEARCH_ENDPOINT_SHARED comes back as foundryiQ_SEARCH_ENDPOINT_SHARED.
+    monkeypatch.delenv("FOUNDRYIQ_SEARCH_ENDPOINT_SHARED", raising=False)
+    values = {"foundryiQ_SEARCH_ENDPOINT_SHARED": "https://shared.search.windows.net"}
+
+    resolved = azd_env.resolve_value("FOUNDRYIQ_SEARCH_ENDPOINT_SHARED", values)
+
+    assert resolved == "https://shared.search.windows.net"
+
+
+def test_resolve_value_prefers_process_environment_and_ignores_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("searcH_RESOURCE_ID_SHARED", "/from/environment")
+    values = {"SEARCH_RESOURCE_ID_SHARED": "/from/azd"}
+
+    assert azd_env.resolve_value("SEARCH_RESOURCE_ID_SHARED", values) == "/from/environment"
+
+
+def test_resolve_value_returns_default_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MISSING_VALUE", raising=False)
+
+    assert azd_env.resolve_value("MISSING_VALUE", {}) == ""
+    assert azd_env.resolve_value("MISSING_VALUE", {}, default="fallback") == "fallback"
+
+
+def test_resolve_value_skips_empty_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PARTIAL_VALUE", "")
+    values = {"partiaL_VALUE": "https://example.test"}
+
+    assert azd_env.resolve_value("PARTIAL_VALUE", values) == "https://example.test"
