@@ -21,9 +21,9 @@ EXPECTED_FIELDS = {
 }
 ALLOWED_BEHAVIORS = {"allow", "deny"}
 DEPARTMENT_ALIASES = {
-    "development": ("development", "engineering"),
-    "human-resources": ("human resources", "human-resources", "hr"),
-    "marketing": ("marketing",),
+    "development": ("development", "engineering", "개발", "개발팀", "엔지니어링"),
+    "human-resources": ("human resources", "human-resources", "hr", "인사", "인사팀"),
+    "marketing": ("marketing", "마케팅", "마케팅팀"),
 }
 
 
@@ -68,13 +68,20 @@ def _build_department_alias_patterns() -> dict[str, tuple[re.Pattern[str], ...]]
             if not words:
                 continue
             pattern = r"[-\s]+".join(re.escape(word) for word in words)
+            # Hangul is written without word spacing, so only latin characters take
+            # part in the boundary check; otherwise "마케팅팀이" would not match "마케팅".
             compiled.append(re.compile(rf"(?<![a-z0-9]){pattern}(?![a-z0-9])"))
         patterns_by_department[department] = tuple(compiled)
     return patterns_by_department
 
 
 def _normalize_query_for_matching(query: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s-]", " ", query.lower())).strip()
+    # Hangul must survive normalization: the seed datasets are written in Korean.
+    return re.sub(
+        r"\s+",
+        " ",
+        re.sub(r"[^a-z0-9\uac00-\ud7a3\s-]", " ", query.lower()),
+    ).strip()
 
 
 class DatasetValidationError(ValueError):

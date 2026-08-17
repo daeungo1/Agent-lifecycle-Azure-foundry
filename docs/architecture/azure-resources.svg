@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 620" width="1180" height="620" role="img"
+     aria-label="Azure resource architecture for the enterprise agent lifecycle">
+  <title>Azure resource architecture</title>
+  <desc>Foundry project hosts three agents and one model deployment, four Azure AI Search services form the knowledge boundaries, Application Insights receives traces, and Entra RBAC scopes every identity.</desc>
+
+  <style>
+    .bg { fill: #ffffff; }
+    .group { rx: 14; ry: 14; fill: #f8fafc; stroke: #94a3b8; stroke-width: 2; }
+    .group-foundry { fill: #f5f3ff; stroke: #6d28d9; }
+    .group-search  { fill: #ecfdf5; stroke: #047857; }
+    .group-obs     { fill: #eff6ff; stroke: #1d4ed8; }
+    .group-id      { fill: #fff7ed; stroke: #c2410c; }
+    .res { rx: 8; ry: 8; fill: #ffffff; stroke-width: 1.5; }
+    .r-foundry { stroke: #c4b5fd; }
+    .r-search  { stroke: #6ee7b7; }
+    .r-obs     { stroke: #93c5fd; }
+    .r-id      { stroke: #fdba74; }
+    .g-title { font: 700 16px "Segoe UI", system-ui, sans-serif; }
+    .gt-foundry { fill: #6d28d9; }
+    .gt-search  { fill: #047857; }
+    .gt-obs     { fill: #1d4ed8; }
+    .gt-id      { fill: #c2410c; }
+    .r-name { font: 600 13px "Segoe UI", system-ui, sans-serif; fill: #0f172a; }
+    .r-sub  { font: 400 11px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+    .rg     { font: 700 14px "Segoe UI", system-ui, sans-serif; fill: #334155; }
+    .flow      { fill: none; stroke: #334155; stroke-width: 2.5; }
+    .flow-obs  { fill: none; stroke: #1d4ed8; stroke-width: 2.5; }
+    .flow-id   { fill: none; stroke: #c2410c; stroke-width: 2; stroke-dasharray: 6 5; }
+    .lbl { font: 600 11px "Segoe UI", system-ui, sans-serif; fill: #334155; }
+    .lbl-obs { font: 600 11px "Segoe UI", system-ui, sans-serif; fill: #1d4ed8; }
+    .lbl-id  { font: 600 11px "Segoe UI", system-ui, sans-serif; fill: #c2410c; }
+    .note { font: 400 12px "Segoe UI", system-ui, sans-serif; fill: #475569; }
+  </style>
+
+  <defs>
+    <marker id="f-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="f-obs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
+    </marker>
+    <marker id="f-id" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="620"/>
+
+  <text class="rg" x="30" y="30">리소스 그룹: rg-agent-lifecycle-demo</text>
+
+  <!-- ===== Foundry ===== -->
+  <rect class="group group-foundry" x="30" y="48" width="470" height="300"/>
+  <text class="g-title gt-foundry" x="50" y="74">Microsoft Foundry</text>
+  <text class="r-sub" x="50" y="92">계정 + 프로젝트 · East US 2</text>
+
+  <rect class="res r-foundry" x="50" y="104" width="430" height="42"/>
+  <text class="r-name" x="64" y="122">모델 배포</text>
+  <text class="r-sub"  x="64" y="139">gpt-5.4-mini · GlobalStandard</text>
+
+  <rect class="res r-foundry" x="50" y="156" width="430" height="42"/>
+  <text class="r-name" x="64" y="174">Hosted Agent × 3</text>
+  <text class="r-sub"  x="64" y="191">development · human-resources · marketing</text>
+
+  <rect class="res r-foundry" x="50" y="208" width="430" height="42"/>
+  <text class="r-name" x="64" y="226">툴박스 × 3</text>
+  <text class="r-sub"  x="64" y="243">부서별 MCP 도구 · Agentic Identity 연결</text>
+
+  <rect class="res r-foundry" x="50" y="260" width="430" height="42"/>
+  <text class="r-name" x="64" y="278">프로젝트 연결</text>
+  <text class="r-sub"  x="64" y="295">appinsights-connection · kb-*-remote-tool</text>
+
+  <rect class="res r-foundry" x="50" y="312" width="430" height="26"/>
+  <text class="r-sub"  x="64" y="330">Foundry IQ 지식 베이스 4개를 Search 경계 위에 구성</text>
+
+  <!-- ===== Search boundaries ===== -->
+  <rect class="group group-search" x="640" y="48" width="510" height="300"/>
+  <text class="g-title gt-search" x="660" y="74">Azure AI Search · 지식 경계</text>
+  <text class="r-sub" x="660" y="92">Basic × 4 · Central US · 로컬 인증 비활성</text>
+
+  <rect class="res r-search" x="660" y="104" width="470" height="42"/>
+  <text class="r-name" x="674" y="122">공용 경계</text>
+  <text class="r-sub"  x="674" y="139">entlifecyc-shared-srch-&lt;suffix&gt;</text>
+
+  <rect class="res r-search" x="660" y="156" width="470" height="42"/>
+  <text class="r-name" x="674" y="174">개발 경계</text>
+  <text class="r-sub"  x="674" y="191">entlifecyc-dev-srch-&lt;suffix&gt;</text>
+
+  <rect class="res r-search" x="660" y="208" width="470" height="42"/>
+  <text class="r-name" x="674" y="226">인사 경계</text>
+  <text class="r-sub"  x="674" y="243">entlifecyc-hr-srch-&lt;suffix&gt;</text>
+
+  <rect class="res r-search" x="660" y="260" width="470" height="42"/>
+  <text class="r-name" x="674" y="278">마케팅 경계</text>
+  <text class="r-sub"  x="674" y="295">entlifecyc-mkt-srch-&lt;suffix&gt;</text>
+
+  <rect class="res r-search" x="660" y="312" width="470" height="26"/>
+  <text class="r-sub"  x="674" y="330">이름 접미사는 구독·리소스 그룹·지역에서 결정</text>
+
+  <!-- Foundry to Search -->
+  <path class="flow" d="M 500 200 L 634 200" marker-end="url(#f-dark)"/>
+  <text class="lbl" x="506" y="190">MCP 조회</text>
+
+  <!-- ===== Observability ===== -->
+  <rect class="group group-obs" x="30" y="376" width="470" height="150"/>
+  <text class="g-title gt-obs" x="50" y="402">관측</text>
+
+  <rect class="res r-obs" x="50" y="414" width="430" height="42"/>
+  <text class="r-name" x="64" y="432">Application Insights</text>
+  <text class="r-sub"  x="64" y="449">에이전트 스팬 · cloud_RoleName = 부서-agent</text>
+
+  <rect class="res r-obs" x="50" y="466" width="430" height="42"/>
+  <text class="r-name" x="64" y="484">Log Analytics 작업 영역</text>
+  <text class="r-sub"  x="64" y="501">보존 30일 · Application Insights 백엔드</text>
+
+  <path class="flow-obs" d="M 265 348 L 265 408" marker-end="url(#f-obs)"/>
+  <text class="lbl-obs" x="275" y="374">OpenTelemetry 내보내기</text>
+
+  <!-- ===== Identity ===== -->
+  <rect class="group group-id" x="640" y="376" width="510" height="150"/>
+  <text class="g-title gt-id" x="660" y="402">Microsoft Entra ID · RBAC</text>
+
+  <rect class="res r-id" x="660" y="414" width="470" height="42"/>
+  <text class="r-name" x="674" y="432">에이전트 인스턴스 관리 ID × 3</text>
+  <text class="r-sub"  x="674" y="449">Search Index Data Reader · 공용 + 자기 부서에만</text>
+
+  <rect class="res r-id" x="660" y="466" width="470" height="42"/>
+  <text class="r-name" x="674" y="484">프로젝트 관리 ID</text>
+  <text class="r-sub"  x="674" y="501">Foundry User · 연속 평가 규칙 등록</text>
+
+  <path class="flow-id" d="M 895 376 L 895 348" marker-end="url(#f-id)"/>
+  <text class="lbl-id" x="905" y="368">경계별 최소 권한 부여</text>
+
+  <text class="note" x="30" y="558">azd provision이 Foundry·모델·Search를 만들고, postprovision 훅이 관측·지식 베이스·툴박스를, postdeploy 훅이 RBAC를 구성합니다.</text>
+  <text class="note" x="30" y="580">정적 자격 증명은 없습니다. 모든 접근은 관리 ID와 Entra 토큰으로 이루어집니다.</text>
+  <text class="note" x="30" y="602">Azure cost 주의: Basic 등급 Search 4개와 모델·에이전트 런타임 비용이 발생합니다.</text>
+</svg>

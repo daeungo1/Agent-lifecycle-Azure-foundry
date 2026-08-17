@@ -18,7 +18,6 @@ EVALUATORS = [
     "builtin.intent_resolution",
     "builtin.task_adherence",
     "builtin.relevance",
-    "builtin.tool_call_accuracy",
     "builtin.groundedness",
 ]
 
@@ -67,3 +66,18 @@ def test_live_eval_datasets_preserve_allow_shared_and_isolation_cases() -> None:
         denial_rows = [row for row in rows if row["expected_behavior"] == "deny"]
         assert len(denial_rows) == 2
         assert all(row["forbidden_terms"] for row in denial_rows)
+
+
+def test_live_eval_configs_exclude_the_unusable_tool_call_evaluator() -> None:
+    """ToolCallAccuracyEvaluator needs a tool_definitions input the CLI cannot supply.
+
+    Every sample errors, and the gate blocks on evaluator errors, so including it
+    would keep promotion permanently red for a reason unrelated to agent quality.
+    """
+    repository_root = Path(__file__).resolve().parents[2]
+
+    for config_name in CONFIGS:
+        config = yaml.safe_load(
+            repository_root.joinpath("evals", config_name).read_text(encoding="utf-8")
+        )
+        assert "builtin.tool_call_accuracy" not in config["evaluators"]

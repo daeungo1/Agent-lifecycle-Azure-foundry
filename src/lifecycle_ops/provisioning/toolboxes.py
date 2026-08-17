@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +14,7 @@ import httpx
 import yaml
 from azure.identity import DefaultAzureCredential
 
-from lifecycle_ops.azd_env import get_values, set_value
+from lifecycle_ops.azd_env import get_values, resolve_value, set_value
 from lifecycle_ops.naming import (
     department_names,
     env_suffix,
@@ -22,6 +23,10 @@ from lifecycle_ops.naming import (
 )
 
 AUDIENCE = "https://search.azure.com"
+
+# 'agentic-identity' is the value passed to `azd ai connection create`; the service
+# reports it back as 'AgenticIdentityToken'. Both denote the same auth type.
+ACCEPTED_AUTH_TYPES = frozenset({"agenticidentity", "agenticidentitytoken"})
 
 BOUNDARY_TO_ENV_SUFFIX = {
     "shared": "SHARED",
@@ -341,8 +346,11 @@ def ensure_exact_connection_set(*, toolbox_name: str, expected: set[str], actual
 
 
 def _run_raw(command: list[str]) -> str:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT,
+    # so the program has to be resolved to a real path before spawning.
+    resolved = [shutil.which(command[0]) or command[0], *command[1:]]
     completed = subprocess.run(
-        command,
+        resolved,
         check=True,
         capture_output=True,
         text=True,
@@ -431,12 +439,10 @@ def validate_remote_tool_connection(
         drift.append(f"kind='{kind}' expected='remote-tool'")
     if _normalize_endpoint(target) != _normalize_endpoint(expected_target):
         drift.append(f"target='{target}' expected='{expected_target}'")
-    if _normalize_alphanumeric(auth_type) not in {
-        "agenticidentity",
-        "agenticidentitytoken",
-    }:
+    if _normalize_alphanumeric(auth_type) not in ACCEPTED_AUTH_TYPES:
         drift.append(f"authType='{auth_type}' expected='agentic-identity'")
-    if _normalize_endpoint(audience) != _normalize_endpoint(AUDIENCE):
+    # The connection API does not echo the audience, so only compare it when reported.
+    if audience and _normalize_endpoint(audience) != _normalize_endpoint(AUDIENCE):
         drift.append(f"audience='{audience}' expected='{AUDIENCE}'")
 
     if drift:
@@ -617,22 +623,26 @@ def upsert_toolbox(
 def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
     _ensure_azd_support()
     env_values = get_values()
-    project_endpoint = _require_project_endpoint(env_values.get("FOUNDRY_PROJECT_ENDPOINT", ""))
-    project_id = env_values.get("AZURE_AI_PROJECT_ID", "")
+    project_endpoint = _require_project_endpoint(
+        resolve_value("FOUNDRY_PROJECT_ENDPOINT", env_values)
+    )
+    project_id = resolve_value("AZURE_AI_PROJECT_ID", env_values)
     if not project_id:
         raise ValueError("Missing required azd environment value: AZURE_AI_PROJECT_ID")
     boundaries = ("shared", *department_names())
+    endpoints: dict[str, str] = {}
     for boundary in boundaries:
         env_name = kb_mcp_endpoint_env_var(boundary)
-        endpoint = env_values.get(env_name, "")
+        endpoint = resolve_value(env_name, env_values)
         if not endpoint:
             raise ValueError(f"Missing required azd environment value: {env_name}")
+        endpoints[boundary] = endpoint
 
     for boundary in boundaries:
         ensure_remote_tool_connection(
             project_id=project_id,
             connection_name=connection_name_for_boundary(boundary),
-            target=env_values[kb_mcp_endpoint_env_var(boundary)],
+            target=endpoints[boundary],
             dry_run=dry_run,
         )
 

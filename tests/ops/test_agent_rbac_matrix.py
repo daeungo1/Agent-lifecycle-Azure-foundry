@@ -17,6 +17,28 @@ from lifecycle_ops.provisioning.rbac import (
 )
 
 
+def test_run_json_command_resolves_executable_via_pathext(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # On Windows the Azure CLI is 'az.cmd'; subprocess does not apply PATHEXT, so the
+    # program has to be resolved before spawning or the hook dies with WinError 2.
+    monkeypatch.setattr(
+        target.shutil,
+        "which",
+        lambda program: r"C:\tools\az.cmd" if program == "az" else None,
+    )
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args, **_kwargs):
+        captured["args"] = args
+        return SimpleNamespace(stdout="[]")
+
+    monkeypatch.setattr(target.subprocess, "run", fake_run)
+
+    assert target._run_json_command(["az", "role", "assignment", "list"]) == []
+    assert captured["args"] == [r"C:\tools\az.cmd", "role", "assignment", "list"]
+
+
 def test_desired_scope_matrix_grants_shared_plus_own_only() -> None:
     principal_ids = {
         "development-agent": "11111111-1111-1111-1111-111111111111",

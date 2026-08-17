@@ -10,7 +10,6 @@ evaluators:
   - builtin.intent_resolution
   - builtin.task_adherence
   - builtin.relevance
-  - builtin.tool_call_accuracy
   - builtin.groundedness
 
 options:

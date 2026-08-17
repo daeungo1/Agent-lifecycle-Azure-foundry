@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 from azure.identity import DefaultAzureCredential
 
-from lifecycle_ops.azd_env import parse_values
+from lifecycle_ops.azd_env import parse_values, resolve_value
 from lifecycle_ops.naming import department_names, knowledge_path
 
 API_VERSION = "2026-04-01"
@@ -319,7 +319,7 @@ def _resolve_search_endpoints(env_values: dict[str, str]) -> dict[str, str]:
     endpoints: dict[str, str] = {}
     for boundary in KNOWLEDGE_BOUNDARIES:
         env_name = search_endpoint_env_var_name(boundary)
-        endpoint = env_values.get(env_name) or os.getenv(env_name, "")
+        endpoint = resolve_value(env_name, env_values)
         endpoints[boundary] = endpoint
     return endpoints
 

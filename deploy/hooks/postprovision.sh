@@ -20,6 +20,8 @@ run_python() {
   fi
 }
 
+run_python -m lifecycle_ops.provisioning.observability \
+  --output artifacts/observability.json
 run_python -m lifecycle_ops.provisioning.knowledge_bases \
   --output artifacts/knowledge-bases.json
 run_python -m lifecycle_ops.provisioning.toolboxes

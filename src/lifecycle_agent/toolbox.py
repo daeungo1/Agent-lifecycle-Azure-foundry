@@ -13,7 +13,7 @@ def build_toolbox(endpoint: str, credential: object) -> MCPStreamableHTTPTool:
     return MCPStreamableHTTPTool(
         name="department-toolbox",
         url=endpoint,
-        load_tools=False,
+        load_tools=True,
         load_prompts=False,
         header_provider=_header_provider,
     )

@@ -312,6 +312,21 @@ def test_validate_remote_tool_connection_treats_default_https_port_as_equivalent
     )
 
 
+def test_validate_remote_tool_connection_accepts_service_response_shape() -> None:
+    # 'azd ai connection show' echoes the service representation: the auth type is
+    # reported as 'AgenticIdentityToken' and no 'audience' field is returned at all.
+    toolboxes.validate_remote_tool_connection(
+        connection_name="kb-shared-remote-tool",
+        expected_target="https://example.test/knowledgebases/shared/mcp",
+        details={
+            "name": "kb-shared-remote-tool",
+            "kind": "RemoteTool",
+            "authType": "AgenticIdentityToken",
+            "target": "https://example.test/knowledgebases/shared/mcp",
+        },
+    )
+
+
 def test_validate_remote_tool_connection_accepts_arm_agentic_identity_token() -> None:
     toolboxes.validate_remote_tool_connection(
         connection_name="kb-development-remote-tool",
@@ -323,6 +338,33 @@ def test_validate_remote_tool_connection_accepts_arm_agentic_identity_token() ->
             "audience": AUDIENCE,
         },
     )
+
+
+def test_validate_remote_tool_connection_rejects_unexpected_auth_type() -> None:
+    with pytest.raises(ValueError, match="authType='ApiKey'"):
+        toolboxes.validate_remote_tool_connection(
+            connection_name="kb-shared-remote-tool",
+            expected_target="https://example.test/knowledgebases/shared/mcp",
+            details={
+                "kind": "RemoteTool",
+                "authType": "ApiKey",
+                "target": "https://example.test/knowledgebases/shared/mcp",
+            },
+        )
+
+
+def test_validate_remote_tool_connection_rejects_wrong_audience_when_reported() -> None:
+    with pytest.raises(ValueError, match="audience='https://wrong.test'"):
+        toolboxes.validate_remote_tool_connection(
+            connection_name="kb-shared-remote-tool",
+            expected_target="https://example.test/knowledgebases/shared/mcp",
+            details={
+                "kind": "RemoteTool",
+                "authType": "AgenticIdentityToken",
+                "target": "https://example.test/knowledgebases/shared/mcp",
+                "audience": "https://wrong.test",
+            },
+        )
 
 
 def test_ensure_remote_tool_connection_creates_missing_connection(
@@ -598,3 +640,27 @@ def test_configure_toolboxes_preserves_connection_then_toolbox_order(
         ("toolbox", "human-resources-knowledge-toolbox"),
         ("toolbox", "marketing-knowledge-toolbox"),
     ]
+
+
+def test_run_raw_resolves_the_executable_before_spawning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT, so
+    # spawning 'az' directly raises WinError 2 during toolbox reconciliation.
+    monkeypatch.setattr(
+        toolboxes.shutil,
+        "which",
+        lambda program: rf"C:\tools\{program}.cmd",
+    )
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command, **_kwargs):
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0, "{}", "")
+
+    monkeypatch.setattr(toolboxes.subprocess, "run", fake_run)
+
+    toolboxes._run_raw(["az", "rest", "--method", "get"])
+
+    assert captured["command"][0] == r"C:\tools\az.cmd"
+    assert captured["command"][1:] == ["rest", "--method", "get"]

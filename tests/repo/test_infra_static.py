@@ -169,3 +169,63 @@ def test_main_bicepparam_pins_foundry_model_deployment() -> None:
     assert "version: '2026-03-17'" in main_bicepparam
     assert "name: 'GlobalStandard'" in main_bicepparam
     assert "capacity: 10" in main_bicepparam
+
+
+def test_every_agent_receives_the_application_insights_connection_string() -> None:
+    import yaml
+
+    repository_root = Path(__file__).resolve().parents[2]
+    azure_yaml = yaml.safe_load(repository_root.joinpath("azure.yaml").read_text(encoding="utf-8"))
+
+    agents = [
+        name
+        for name, service in azure_yaml["services"].items()
+        if service.get("host") == "azure.ai.agent"
+    ]
+    assert len(agents) == 3
+
+    for name in agents:
+        variables = {
+            item["name"]: item["value"]
+            for item in azure_yaml["services"][name]["environmentVariables"]
+        }
+        assert variables["APPLICATIONINSIGHTS_CONNECTION_STRING"] == (
+            "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+        )
+
+
+def test_observability_module_declares_application_insights_and_workspace() -> None:
+    """Deployed by the postprovision hook, not by `azd provision`.
+
+    The microsoft.foundry provider synthesises its own ARM template containing only
+    the Foundry account, project and model deployment, so resources declared in
+    main.bicep never reach ARM.
+    """
+    module = _infra_path("modules", "observability.bicep")
+    assert module.exists()
+
+    source = module.read_text(encoding="utf-8")
+    assert "Microsoft.OperationalInsights/workspaces@" in source
+    assert "Microsoft.Insights/components@" in source
+    assert "WorkspaceResourceId: logAnalyticsWorkspace.id" in source
+    assert "output connectionString string" in source
+    assert "output resourceId string" in source
+
+
+def test_observability_module_is_not_wired_into_the_unused_provider_template() -> None:
+    main_bicep = _infra_path("main.bicep").read_text(encoding="utf-8")
+
+    assert "modules/observability.bicep" not in main_bicep
+
+
+def test_project_identity_is_granted_foundry_user_for_continuous_evaluation() -> None:
+    """The Operate stage cannot register evaluation rules without this role.
+
+    Foundry rejects `evaluation_rules.create_or_update` with "Project managed identity
+    lacks Foundry User role on the project".
+    """
+    resources_bicep = _infra_path("modules", "resources.bicep").read_text(encoding="utf-8")
+
+    # Foundry User
+    assert "53ca6127-db72-4b80-b1b0-d745d6d5456d" in resources_bicep
+    assert "foundryAccount::project.identity.principalId" in resources_bicep

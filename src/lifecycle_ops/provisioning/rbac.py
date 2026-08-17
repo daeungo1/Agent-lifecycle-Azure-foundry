@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
-from lifecycle_ops.azd_env import parse_values
+from lifecycle_ops.azd_env import parse_values, resolve_value
 from lifecycle_ops.naming import agent_name as derive_agent_name
 from lifecycle_ops.naming import (
     department_names,
@@ -53,6 +53,10 @@ def _load_active_azd_environment() -> dict[str, str]:
 
 
 def _run_json_command(args: list[str]) -> Any:
+    # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT,
+    # so the program has to be resolved to a real path before spawning.
+    if args:
+        args = [shutil.which(args[0]) or args[0], *args[1:]]
     result = subprocess.run(args, check=True, capture_output=True, text=True)
     if not result.stdout.strip():
         return None
@@ -81,11 +85,8 @@ def extract_agent_principal_id(payload: dict[str, Any], agent_name: str) -> str:
 
 
 def _get_project_endpoint(azd_env: dict[str, str]) -> str:
-    endpoint = (
-        os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-        or os.getenv("FOUNDRY_PROJECT_ENDPOINT")
-        or azd_env.get("AZURE_AI_PROJECT_ENDPOINT", "")
-        or azd_env.get("FOUNDRY_PROJECT_ENDPOINT", "")
+    endpoint = resolve_value("AZURE_AI_PROJECT_ENDPOINT", azd_env) or resolve_value(
+        "FOUNDRY_PROJECT_ENDPOINT", azd_env
     )
     if not endpoint:
         raise ValueError(
@@ -101,7 +102,7 @@ def _get_search_resource_ids(azd_env: dict[str, str]) -> dict[str, str]:
 
     for boundary in KNOWN_BOUNDARIES:
         env_name = search_resource_id_env_var(boundary)
-        value = os.getenv(env_name) or azd_env.get(env_name, "")
+        value = resolve_value(env_name, azd_env)
         if not value:
             missing.append(env_name)
         resource_ids[boundary] = value

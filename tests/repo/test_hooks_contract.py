@@ -8,6 +8,9 @@ import pytest
 import yaml
 
 POSTPROVISION_MODULES = [
+    # Observability first: the agents read APPLICATIONINSIGHTS_CONNECTION_STRING at
+    # deploy time, so the resource and the project connection must exist before then.
+    "lifecycle_ops.provisioning.observability",
     "lifecycle_ops.provisioning.knowledge_bases",
     "lifecycle_ops.provisioning.toolboxes",
 ]
@@ -63,7 +66,7 @@ def test_hooks_preserve_deployment_artifacts_on_both_platforms() -> None:
 
 def test_windows_hooks_stop_after_each_failed_native_command() -> None:
     for path, expected_checks in (
-        (Path("deploy/hooks/postprovision.ps1"), 2),
+        (Path("deploy/hooks/postprovision.ps1"), 3),
         (Path("deploy/hooks/postdeploy.ps1"), 1),
     ):
         source = path.read_text(encoding="utf-8")
@@ -72,6 +75,9 @@ def test_windows_hooks_stop_after_each_failed_native_command() -> None:
 
 
 def test_posix_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("POSIX hooks require /bin/sh")
+
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     uv_log = tmp_path / "uv.log"
@@ -91,7 +97,7 @@ def test_posix_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path) 
     }
 
     for hook, expected_invocations in (
-        (Path("deploy/hooks/postprovision.sh"), 2),
+        (Path("deploy/hooks/postprovision.sh"), 3),
         (Path("deploy/hooks/postdeploy.sh"), 1),
     ):
         uv_log.unlink(missing_ok=True)
@@ -123,12 +129,18 @@ def test_windows_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     uv_log = tmp_path / "uv.log"
-    uv = bin_dir / "uv"
-    uv.write_text(
-        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$UV_LOG"\n',
-        encoding="utf-8",
-    )
-    uv.chmod(0o755)
+    if os.name == "nt":
+        # PowerShell on Windows cannot execute a shebang script, so the stand-in has
+        # to be a batch shim for `Get-Command uv` to resolve and run it.
+        uv = bin_dir / "uv.cmd"
+        uv.write_text('@echo off\r\n>>"%UV_LOG%" echo %*\r\n', encoding="utf-8")
+    else:
+        uv = bin_dir / "uv"
+        uv.write_text(
+            '#!/bin/sh\nprintf "%s\\n" "$*" >> "$UV_LOG"\n',
+            encoding="utf-8",
+        )
+        uv.chmod(0o755)
     env = {
         **os.environ,
         "PATH": str(bin_dir),
@@ -136,7 +148,7 @@ def test_windows_hooks_fall_back_to_uv_when_python_is_unavailable(tmp_path: Path
     }
 
     for hook, expected_invocations in (
-        (Path("deploy/hooks/postprovision.ps1"), 2),
+        (Path("deploy/hooks/postprovision.ps1"), 3),
         (Path("deploy/hooks/postdeploy.ps1"), 1),
     ):
         uv_log.unlink(missing_ok=True)

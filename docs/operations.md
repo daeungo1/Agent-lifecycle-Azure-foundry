@@ -1,5 +1,57 @@
 # Operate: Continuous Evaluation and Agent 365
 
+## Agent Tracing
+
+Every hosted agent exports OpenTelemetry spans to Application Insights, and the Foundry
+project carries an `AppInsights` connection so the portal can render them.
+
+- Resources: `appi-<token>` (Application Insights) and `log-<token>` (Log Analytics),
+  named from the Foundry account token so they stay aligned with the environment.
+- Project connection: `appinsights-connection`, category `AppInsights`.
+- Runtime wiring: `azure.yaml` passes `APPLICATIONINSIGHTS_CONNECTION_STRING` to each
+  agent, and `configure_observability` enables the Azure Monitor exporter when it is set.
+- Each agent sets `OTEL_SERVICE_NAME` to `<department>-agent`, so spans arrive with
+  `cloud_RoleName` identifying the department. Without it every span is reported as
+  `unknown_service` and the three agents cannot be told apart.
+
+Confirm telemetry with:
+
+```kusto
+union dependencies, requests, traces
+| where timestamp > ago(1h)
+| summarize events = count(), lastSeen = max(timestamp) by itemType, cloud_RoleName
+| order by events desc
+```
+
+### Why observability is provisioned by a hook
+
+`azure.yaml` now uses the built-in `bicep` provider, so `deploy/infra/main.bicep` is
+deployed as written. The `microsoft.foundry` provider it replaced synthesised its own ARM
+template containing only the Foundry account, project and model deployment: resources
+declared in `main.bicep` — the four Search services, role assignments, everything — were
+silently dropped, which is why exporting a deployment made under that provider shows none
+of them.
+
+`deploy/infra/modules/observability.bicep` is still deployed by
+`lifecycle_ops.provisioning.observability` from the `postprovision` hook rather than from
+`main.bicep`. The hook publishes `APPLICATIONINSIGHTS_CONNECTION_STRING` to the azd
+environment, which `azure.yaml` then forwards to the agents at deploy time, and it keeps
+working on environments that predate the provider switch. It runs before the knowledge
+base and toolbox steps.
+
+### Migrating an environment created under the foundry provider
+
+The Foundry account in such an environment was named by that provider, and the Search
+services were created before names carried a deterministic suffix. Neither matches what
+`main.bicep` computes, so `azd provision --preview` reports the existing resources as
+`Skip` and proposes `Create` for a differently named account and four suffixed Search
+services. That is a migration, not an in-place update: running it leaves the old resources
+in place and bills for both sets.
+
+Before provisioning such an environment, decide whether to migrate to the new names and
+decommission the old resources, or to keep the existing environment and deploy only agent
+code with `azd deploy`.
+
 ## Foundry Monitor Workflow
 
 1. Open the Foundry project Monitor panel.
@@ -27,13 +79,38 @@
 
 The deployment gate and continuous evaluation serve different purposes:
 
-- The deployment gate uses fixed versioned datasets and five evaluators: intent resolution,
-  task adherence, relevance, tool-call accuracy, and groundedness. It blocks promotion.
+- The deployment gate uses fixed versioned datasets and four evaluators: intent resolution,
+  task adherence, relevance, and groundedness. It blocks promotion.
 - Continuous evaluation samples deployed response traffic and uses the three lower-cost signal
   evaluators: intent resolution, task adherence, and relevance. It is non-blocking and bounded to
   20 runs per hour.
 - The Operate stage registers or updates deterministic evaluation rules after the deployment gate
   succeeds. Foundry executes subsequent evaluations when response-completed events occur.
+
+### Why tool-call accuracy is not in the gate
+
+`ToolCallAccuracyEvaluator` requires a `tool_definitions` input. The
+`azure_ai_target_completions` data source built by `azd ai agent eval run` maps only
+`{{item.query}}` into the conversation and offers no evaluator data mapping, so the evaluator
+errors on every sample. Adding `tool_definitions` to the dataset rows does not help, because the
+field is never mapped to the evaluator. A permanently erroring criterion would block every
+promotion for a reason unrelated to agent quality, so the criterion is omitted and recorded here.
+Re-add `builtin.tool_call_accuracy` to `evals/eval.yaml` once the eval configuration supports
+evaluator data mapping.
+
+### Evaluator identifiers
+
+Both the gate config and the continuous evaluation criteria address service evaluators as
+`builtin.<name>`. The Foundry evals API rejects bare names with `EvaluatorNotFound`. The AI-assisted
+evaluators also require a judge model, supplied as `options.eval_model` in `evals/eval.yaml`.
+
+### Reading gate results
+
+`azd ai agent eval run` writes progress text, not machine-readable JSON. Export the structured run
+with `azd ai agent eval show <eval-id> --eval-run-id <run-id> --out-file <path>` and pass that file
+to `python -m lifecycle_ops.evaluation.gate`. The export reports pass and fail counts per criterion
+rather than scores, so the gate scores each criterion as its pass rate over evaluated samples and
+counts errored samples as failures.
 
 ## Agent 365 Registry Verification
 

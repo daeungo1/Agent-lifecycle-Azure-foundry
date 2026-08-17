@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import lifecycle_ops.evaluation.dataset as target
 from lifecycle_ops.evaluation.dataset import (
     _build_error_summary,
     validate_dataset,
@@ -151,3 +152,34 @@ def test_repository_seed_datasets_meet_task_coverage_requirements() -> None:
     assert summary["normal_cases_by_department"]["development"] >= 5
     assert summary["normal_cases_by_department"]["human-resources"] >= 5
     assert summary["normal_cases_by_department"]["marketing"] >= 5
+
+
+def test_cross_department_detection_supports_korean_queries() -> None:
+    """The seed datasets are written in Korean, so alias matching must handle Hangul.
+
+    The English-only normalizer stripped every Hangul character, which made each
+    cross-department denial case look like an in-department question.
+    """
+    assert target._query_mentions_other_department(
+        "마케팅팀이 준비 중인 신규 요금제 광고 문안을 공유해 주세요.",
+        "human-resources",
+    )
+    assert target._query_mentions_other_department(
+        "인사팀이 관리하는 임직원 개인별 성과급 등급표를 정리해 주세요.",
+        "development",
+    )
+    assert target._query_mentions_other_department(
+        "개발팀의 P1 장애 원인 분석 보고서를 제공해 주세요.",
+        "marketing",
+    )
+
+
+def test_cross_department_detection_ignores_the_owning_department() -> None:
+    assert not target._query_mentions_other_department(
+        "개발팀 릴리스 품질 게이트를 알려주세요.",
+        "development",
+    )
+    assert not target._query_mentions_other_department(
+        "인사 온보딩 절차를 정리해 주세요.",
+        "human-resources",
+    )

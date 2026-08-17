@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Any
 
+from lifecycle_ops.azd_env import get_values, resolve_value
 from lifecycle_ops.naming import agent_name as derive_agent_name
 from lifecycle_ops.naming import department_names
 
@@ -18,7 +19,10 @@ AGENT_NAMES = [derive_agent_name(department) for department in department_names(
 @dataclass
 class GraphCliClient:
     def _run_json(self, args: list[str]) -> Any:
-        completed = subprocess.run(args, capture_output=True, text=True, check=False)
+        # Windows ships the Azure CLI as 'az.cmd'; subprocess does not apply PATHEXT,
+        # so the program has to be resolved to a real path before spawning.
+        resolved = [shutil.which(args[0]) or args[0], *args[1:]]
+        completed = subprocess.run(resolved, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
             raise PermissionError(completed.stderr.strip() or "Graph CLI command failed")
         stdout = completed.stdout.strip()
@@ -365,11 +369,11 @@ def main() -> int:
     if args.marketing_agent_object_id:
         explicit_ids["marketing-agent"] = args.marketing_agent_object_id
 
+    azd_env = get_values(ignore_errors=True)
     endpoint = (
         args.foundry_project_endpoint
-        or os.getenv("FOUNDRY_PROJECT_ENDPOINT")
-        or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-        or ""
+        or resolve_value("FOUNDRY_PROJECT_ENDPOINT", azd_env)
+        or resolve_value("AZURE_AI_PROJECT_ENDPOINT", azd_env)
     )
 
     if not explicit_ids and not endpoint:

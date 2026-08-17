@@ -70,6 +70,13 @@ jobs:
             AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd env set AZURE_AI_PROJECT_ENDPOINT "$FOUNDRY_PROJECT_ENDPOINT" --no-prompt
           fi
 
+      - name: Azure CLI login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.TENANT_ID }}
+          subscription-id: ${{ vars.SUBSCRIPTION_ID }}
+
       - name: provision
         run: |
           mkdir -p artifacts
@@ -81,9 +88,9 @@ jobs:
 
       - name: three-agent smoke
         run: |
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Provide a brief development sprint update with citations." --no-prompt --output raw > artifacts/smoke-development.txt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Summarize a policy onboarding checklist with citations." --no-prompt --output raw > artifacts/smoke-human-resources.txt
-          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Draft a campaign launch summary with citations." --no-prompt --output raw > artifacts/smoke-marketing.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke development-agent "Use your knowledge tools to find your department's engineering standards, then summarize the guidance they provide. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-development.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke human-resources-agent "Use your knowledge tools to find your department's people policy, then summarize the guidance it provides. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-human-resources.txt
+          AZURE_DEV_USER_AGENT=microsoft_foundry_skill azd ai agent invoke marketing-agent "Use your knowledge tools to find your department's brand guidelines, then summarize the guidance they provide. Cite the document titles you used." --no-prompt --output raw > artifacts/smoke-marketing.txt
           python -m lifecycle_ops.operations.deployment_check --smoke-artifacts-dir artifacts --output-json artifacts/verify-deployment.json
 
       - name: Evaluate
