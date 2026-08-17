@@ -162,6 +162,31 @@ Status contract:
 - Ensure observability export and trace retention remain within approved residency boundaries.
 - Validate residency whenever workspace, project region, or sink configuration changes.
 
+## azd CLI Version And Extension Auth
+
+The lifecycle is validated with `azd` 1.31.1, and `.github/workflows/deploy-evaluate.yml`
+pins `Azure/setup-azd@v2` to that version so local and CI runs resolve the same command
+surface.
+
+`azd ai` extension commands acquire their token by shelling out to `azd auth token`, and the
+extension abandons that probe after 10 seconds. On a slow network the probe exceeds the
+budget and every extension command fails with `AzureDeveloperCLICredential: exit status 1`,
+even though `azd auth login --check-status` succeeds and `azd provision` and `azd deploy`
+work normally. This is latency, not a broken sign-in, so repeating `azd auth login` does not
+help.
+
+Diagnose it with `azd ai agent doctor`, which reports the real cause as
+`Token acquisition timed out after 10s`. Confirm by timing the probe directly:
+
+```powershell
+Measure-Command { azd auth token --output json --scope "https://ai.azure.com/.default" }
+```
+
+`azd version` completing in well under a second while the token probe takes longer than ten
+confirms token endpoint latency rather than a slow CLI. The deployed agents are unaffected
+while the extension path is degraded; verify them with a direct REST call to the project
+responses endpoint.
+
 ## Teardown
 
 1. Delete or disable continuous evaluation rules by deterministic ids.

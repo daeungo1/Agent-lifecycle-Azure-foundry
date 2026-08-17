@@ -49,6 +49,8 @@ jobs:
 
       - name: Setup azd
         uses: Azure/setup-azd@v2
+        with:
+          version: 1.31.1
 
       - name: Build
         run: |

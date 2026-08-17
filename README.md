@@ -78,7 +78,11 @@ src/lifecycle_ops/           프로비저닝·평가·운영 자동화
 
 ## 로컬 준비
 
+`azd` 1.31.1 이상이 필요합니다. CI도 같은 버전으로 고정되어 있으므로 로컬과 파이프라인이
+동일한 명령 표면을 사용합니다.
+
 ```powershell
+azd version
 uv --version
 uv venv --python 3.13
 uv pip install --prerelease=allow -r requirements-dev.txt
