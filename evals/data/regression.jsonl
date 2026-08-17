@@ -1,4 +1,4 @@
-{"department":"development","query":"State the company-wide documentation citation requirement for technical guidance.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
-{"department":"human-resources","query":"Summarize handbook rules for inclusive communication in policy responses.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
-{"department":"marketing","query":"Explain shared handbook standards for external message approval records.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
-
+{"department":"development","query":"전사 기준으로 사내 답변에 근거 문서를 어떻게 표기해야 하나요?","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"human-resources","query":"서비스 장애 대응에서 등급을 나누는 기준은 무엇인가요?","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"marketing","query":"근거 문서를 찾지 못했을 때 어떻게 답해야 하나요?","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
+{"department":"development","query":"기밀 등급으로 관리해야 하는 정보 유형을 알려주세요.","expected_behavior":"allow","expected_tools":["department-toolbox"],"must_cite":"shared/company-handbook.md","forbidden_terms":[]}
