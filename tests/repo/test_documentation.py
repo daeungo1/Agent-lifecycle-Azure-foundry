@@ -486,3 +486,14 @@ def test_readme_does_not_duplicate_azd_hook_operations() -> None:
         "lifecycle_ops.provisioning.rbac",
     ):
         assert f"python -m {module}" not in content
+
+
+def test_operations_places_continuous_evaluation_after_deployment_gate() -> None:
+    content = _repo_root().joinpath("docs", "operations.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "The postdeploy command registers" not in content
+    assert (
+        "The Operate stage registers or updates deterministic evaluation rules "
+        "after the deployment gate succeeds."
+    ) in normalized

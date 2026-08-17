@@ -18,6 +18,21 @@ def test_load_departments_finds_repository_file_outside_repo_cwd(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    tmp_path.joinpath("departments.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "departments": [
+                    {
+                        "name": "unrelated",
+                        "description": "Unrelated launch directory config",
+                        "prompt": "prompt.md",
+                        "specialists": [],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path)
 
     assert tuple(load_departments()) == (

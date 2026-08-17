@@ -29,15 +29,18 @@ def _find_repository_file(path: Path) -> Path:
 
 
 def load_departments(
-    path: Path | str = Path("departments.yaml"),
+    path: Path | str | None = None,
 ) -> dict[str, DepartmentConfig]:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        full_path = candidate
-    elif candidate.is_file():
-        full_path = candidate.resolve()
+    if path is None:
+        full_path = _find_repository_file(Path("departments.yaml"))
     else:
-        full_path = _find_repository_file(candidate)
+        candidate = Path(path)
+        if candidate.is_absolute():
+            full_path = candidate
+        elif candidate.is_file():
+            full_path = candidate.resolve()
+        else:
+            full_path = _find_repository_file(candidate)
 
     payload = yaml.safe_load(full_path.read_text(encoding="utf-8")) or {}
     departments = payload.get("departments", [])

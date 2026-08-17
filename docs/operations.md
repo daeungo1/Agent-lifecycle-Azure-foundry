@@ -32,8 +32,8 @@ The deployment gate and continuous evaluation serve different purposes:
 - Continuous evaluation samples deployed response traffic and uses the three lower-cost signal
   evaluators: intent resolution, task adherence, and relevance. It is non-blocking and bounded to
   20 runs per hour.
-- The postdeploy command registers or updates deterministic evaluation rules. Foundry executes
-  subsequent evaluations when response-completed events occur.
+- The Operate stage registers or updates deterministic evaluation rules after the deployment gate
+  succeeds. Foundry executes subsequent evaluations when response-completed events occur.
 
 ## Agent 365 Registry Verification
 

@@ -364,6 +364,86 @@ def test_upsert_toolbox_verifies_exact_connections_and_sets_endpoint(
     assert env_values == [("TOOLBOX_ENDPOINT_DEVELOPMENT", endpoint)]
 
 
+def test_upsert_toolbox_rejects_missing_project_endpoint_before_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        toolboxes,
+        "_run_json",
+        lambda command, **kwargs: commands.append(command),
+    )
+
+    with pytest.raises(ValueError, match="Missing required FOUNDRY_PROJECT_ENDPOINT"):
+        toolboxes.upsert_toolbox(
+            spec=DEPARTMENT_TOOLBOXES["development"],
+            project_endpoint="",
+        )
+
+    assert commands == []
+
+
+def test_upsert_toolbox_dry_run_simulates_reconciled_connection_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "connections": [
+            {"name": "kb-shared-remote-tool"},
+            {"name": "kb-marketing-remote-tool"},
+        ]
+    }
+    json_commands: list[list[str]] = []
+    raw_commands: list[list[str]] = []
+    monkeypatch.setattr(
+        toolboxes,
+        "_run_json",
+        lambda command, **kwargs: json_commands.append(command) or payload,
+    )
+    monkeypatch.setattr(
+        toolboxes,
+        "_run_raw",
+        lambda command: raw_commands.append(command) or "",
+    )
+
+    result = toolboxes.upsert_toolbox(
+        spec=DEPARTMENT_TOOLBOXES["development"],
+        project_endpoint="https://example.services.ai.azure.com/api/projects/p1",
+        dry_run=True,
+    )
+
+    assert result == {
+        "department": "development",
+        "toolbox_name": "development-knowledge-toolbox",
+        "endpoint": "",
+    }
+    assert json_commands == [toolboxes.build_toolbox_show_args("development-knowledge-toolbox")]
+    assert raw_commands == []
+
+
+def test_configure_toolboxes_rejects_missing_project_endpoint_before_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env = {
+        "KB_MCP_ENDPOINT_SHARED": "https://example.test/shared",
+        "KB_MCP_ENDPOINT_DEVELOPMENT": "https://example.test/development",
+        "KB_MCP_ENDPOINT_HUMAN_RESOURCES": "https://example.test/human-resources",
+        "KB_MCP_ENDPOINT_MARKETING": "https://example.test/marketing",
+    }
+    mutations: list[str] = []
+    monkeypatch.setattr(toolboxes, "_ensure_azd_support", lambda: None)
+    monkeypatch.setattr(toolboxes, "get_values", lambda: env)
+    monkeypatch.setattr(
+        toolboxes,
+        "ensure_remote_tool_connection",
+        lambda **kwargs: mutations.append(kwargs["connection_name"]),
+    )
+
+    with pytest.raises(ValueError, match="Missing required FOUNDRY_PROJECT_ENDPOINT"):
+        toolboxes.configure_toolboxes()
+
+    assert mutations == []
+
+
 def test_configure_toolboxes_preserves_connection_then_toolbox_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -493,12 +493,23 @@ def _publish_mutation(*, toolbox_name: str, mutation: Any) -> None:
     _run_raw(build_toolbox_publish_args(toolbox_name, version))
 
 
+def _require_project_endpoint(project_endpoint: str) -> str:
+    if not project_endpoint:
+        raise ValueError(
+            "Missing required FOUNDRY_PROJECT_ENDPOINT for deterministic "
+            "toolbox endpoint construction."
+        )
+    return project_endpoint
+
+
 def upsert_toolbox(
     *,
     spec: ToolboxSpec,
     project_endpoint: str,
     dry_run: bool = False,
 ) -> dict[str, str]:
+    project_endpoint = _require_project_endpoint(project_endpoint)
+
     expected = set(expected_toolbox_connections(spec.department))
     show_result = _run_json(
         build_toolbox_show_args(spec.toolbox_name),
@@ -513,7 +524,9 @@ def upsert_toolbox(
         plan = plan_toolbox_reconciliation(current=current, expected=expected)
 
         for connection_name in plan["missing"]:
-            if not dry_run:
+            if dry_run:
+                current.add(connection_name)
+            else:
                 mutation = _run_json(
                     build_toolbox_connection_add_args(
                         toolbox_name=spec.toolbox_name,
@@ -521,8 +534,8 @@ def upsert_toolbox(
                     )
                 )
                 _publish_mutation(toolbox_name=spec.toolbox_name, mutation=mutation)
-            show_result = _run_json(build_toolbox_show_args(spec.toolbox_name))
-            current = extract_toolbox_connection_names(show_result)
+                show_result = _run_json(build_toolbox_show_args(spec.toolbox_name))
+                current = extract_toolbox_connection_names(show_result)
 
         for connection_name in plan_toolbox_reconciliation(
             current=current,
@@ -533,7 +546,9 @@ def upsert_toolbox(
                     f"Refusing to remove '{connection_name}' from '{spec.toolbox_name}' "
                     "because toolbox cannot be left with zero tools."
                 )
-            if not dry_run:
+            if dry_run:
+                current.remove(connection_name)
+            else:
                 mutation = _run_json(
                     build_toolbox_connection_remove_args(
                         toolbox_name=spec.toolbox_name,
@@ -541,8 +556,8 @@ def upsert_toolbox(
                     )
                 )
                 _publish_mutation(toolbox_name=spec.toolbox_name, mutation=mutation)
-            show_result = _run_json(build_toolbox_show_args(spec.toolbox_name))
-            current = extract_toolbox_connection_names(show_result)
+                show_result = _run_json(build_toolbox_show_args(spec.toolbox_name))
+                current = extract_toolbox_connection_names(show_result)
 
         ensure_exact_connection_set(
             toolbox_name=spec.toolbox_name,
@@ -559,11 +574,6 @@ def upsert_toolbox(
             expected=expected,
             actual=actual,
         )
-        if not project_endpoint:
-            raise ValueError(
-                "Missing required FOUNDRY_PROJECT_ENDPOINT for deterministic "
-                "toolbox endpoint construction."
-            )
         endpoint = extract_toolbox_endpoint(
             published,
             project_endpoint=project_endpoint,
@@ -581,6 +591,7 @@ def upsert_toolbox(
 def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
     _ensure_azd_support()
     env_values = get_values()
+    project_endpoint = _require_project_endpoint(env_values.get("FOUNDRY_PROJECT_ENDPOINT", ""))
     boundaries = ("shared", *department_names())
     for boundary in boundaries:
         env_name = kb_mcp_endpoint_env_var(boundary)
@@ -595,7 +606,6 @@ def configure_toolboxes(*, dry_run: bool = False) -> list[dict[str, str]]:
             dry_run=dry_run,
         )
 
-    project_endpoint = env_values.get("FOUNDRY_PROJECT_ENDPOINT", "")
     return [
         upsert_toolbox(
             spec=DEPARTMENT_TOOLBOXES[department],
