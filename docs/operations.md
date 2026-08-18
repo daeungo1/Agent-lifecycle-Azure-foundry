@@ -187,6 +187,43 @@ confirms token endpoint latency rather than a slow CLI. The deployed agents are 
 while the extension path is degraded; verify them with a direct REST call to the project
 responses endpoint.
 
+## Continuous Evaluation And Hosted Agents
+
+Continuous evaluation rules register successfully and fire on every agent response,
+but each run fails immediately with `total = 0`:
+
+```
+UserError: Evaluation failed with AOAI error: Error code: 403 -
+{'error': {'code': 'session_not_accessible', 'message': 'Session is not accessible.'}}
+inner_error: PermissionDenied
+```
+
+This is a platform limitation, not a misconfiguration. A `ResponseCompleted` rule
+builds its item with `response_retrieval`, which reads the response back through the
+project. Hosted agents cannot produce responses there. Calling the documented
+project path returns:
+
+```
+400 bad_request: Hosted agents can only be called through the agent endpoint:
+https://<account>.services.ai.azure.com/api/projects/<project>/agents/<agentName>/endpoint/protocols/openai/responses
+```
+
+So a hosted agent response only ever exists inside an agent session owned by the
+caller, and the evaluation service cannot read that session.
+
+Ruled out by testing, so do not spend time on them again:
+
+- Project managed identity RBAC. `Foundry User` at project scope, `Foundry User` at
+  account scope, and `Log Analytics Reader` on both Application Insights and its
+  workspace are all assigned. The failure is unchanged after propagation.
+- Stale environment values. The failure reproduces against a freshly refreshed
+  environment pointing at the live account.
+
+The deployment gate is unaffected because it runs one-off evaluations that generate
+their own responses. Treat the gate as the enforcing control and the continuous
+rules as registered but not yet producing results. Re-test after the hosted agent
+and evaluation services converge; the rules need no change.
+
 ## Teardown
 
 1. Delete or disable continuous evaluation rules by deterministic ids.

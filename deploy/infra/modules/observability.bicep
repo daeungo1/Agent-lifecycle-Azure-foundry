@@ -24,6 +24,18 @@ param tags object = {}
 @maxValue(730)
 param retentionInDays int = 30
 
+@description('Foundry project managed identity that evaluation runs read traces with.')
+param projectPrincipalId string = ''
+
+// Log Analytics Reader. Evaluation runs read agent traces through the project
+// managed identity, and the observability troubleshooting guide requires the role
+// on both the Application Insights component and its linked workspace. Without it
+// evaluation runs report authorization errors or find no traces.
+var logAnalyticsReaderRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '73c42c96-874c-492b-b04d-ab87d138a893'
+)
+
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: logAnalyticsWorkspaceName
   location: location
@@ -44,6 +56,26 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   properties: {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalyticsWorkspace.id
+  }
+}
+
+resource workspaceTraceReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(projectPrincipalId)) {
+  name: guid(logAnalyticsWorkspace.id, projectPrincipalId, logAnalyticsReaderRoleId)
+  scope: logAnalyticsWorkspace
+  properties: {
+    principalId: projectPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: logAnalyticsReaderRoleId
+  }
+}
+
+resource componentTraceReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(projectPrincipalId)) {
+  name: guid(applicationInsights.id, projectPrincipalId, logAnalyticsReaderRoleId)
+  scope: applicationInsights
+  properties: {
+    principalId: projectPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: logAnalyticsReaderRoleId
   }
 }
 

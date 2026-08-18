@@ -336,6 +336,20 @@ resource projectFoundryUser 'Microsoft.Authorization/roleAssignments@2022-04-01'
   }
 }
 
+// The same role is also required at account scope. Account-level data actions are
+// not covered by the project-scoped assignment, and the hosted agent permissions
+// reference states the requirement as "Foundry Project -> Foundry User role on
+// Foundry Account". Evaluation and model access fail without it.
+resource accountFoundryUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(foundryAccount.id, 'project-identity', foundryUserRoleId)
+  scope: foundryAccount
+  properties: {
+    principalId: foundryAccount::project.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: foundryUserRoleId
+  }
+}
+
 // Outputs
 
 output AZURE_AI_PROJECT_ID string = foundryAccount::project.id

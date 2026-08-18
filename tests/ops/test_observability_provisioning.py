@@ -26,6 +26,34 @@ def test_resource_names_reject_an_unexpected_account_name() -> None:
         target.build_resource_names("some-other-account")
 
 
+def test_deployment_passes_the_project_identity_so_trace_reader_roles_are_created() -> None:
+    # Evaluation runs read agent traces as the project managed identity, so the
+    # module needs the principal to create the Log Analytics Reader assignments.
+    names = target.build_resource_names("cog-b6hrlxpaff37w")
+
+    args = target.build_deployment_args(
+        resource_group="rg-agent-lifecycle-demo",
+        location="eastus2",
+        names=names,
+        project_principal_id="5b811a45-c69c-422b-b437-3da3d4278d46",
+    )
+
+    assert "projectPrincipalId=5b811a45-c69c-422b-b437-3da3d4278d46" in args
+
+
+def test_project_principal_lookup_returns_empty_when_the_project_id_is_unknown() -> None:
+    # Observability must still be provisioned; only the role assignments are skipped.
+    assert target.resolve_project_principal_id({}) == ""
+
+
+def test_project_principal_lookup_queries_the_project_identity() -> None:
+    args = target.build_project_identity_args(project_resource_id="/subscriptions/s/projects/p")
+
+    assert args[:3] == ["az", "resource", "show"]
+    assert "/subscriptions/s/projects/p" in args
+    assert "identity.principalId" in args
+
+
 def test_deployment_command_targets_the_observability_module() -> None:
     names = target.build_resource_names("cog-b6hrlxpaff37w")
 

@@ -55,6 +55,7 @@ def build_deployment_args(
     resource_group: str,
     location: str,
     names: ResourceNames,
+    project_principal_id: str = "",
 ) -> list[str]:
     return [
         "az",
@@ -71,6 +72,8 @@ def build_deployment_args(
         f"applicationInsightsName={names.application_insights}",
         "--parameters",
         f"logAnalyticsWorkspaceName={names.log_analytics_workspace}",
+        "--parameters",
+        f"projectPrincipalId={project_principal_id}",
         "--only-show-errors",
         "--output",
         "json",
@@ -133,6 +136,40 @@ def _require(name: str, env_values: dict[str, str]) -> str:
     return value
 
 
+def build_project_identity_args(*, project_resource_id: str) -> list[str]:
+    return [
+        "az",
+        "resource",
+        "show",
+        "--ids",
+        project_resource_id,
+        "--api-version",
+        "2025-06-01",
+        "--query",
+        "identity.principalId",
+        "--output",
+        "tsv",
+    ]
+
+
+def resolve_project_principal_id(env_values: dict[str, str]) -> str:
+    """Look up the project managed identity that evaluation runs read traces with.
+
+    Returns an empty string when the project id is unknown so provisioning still
+    creates the observability resources; the role assignments are then skipped.
+    """
+    project_resource_id = resolve_value("AZURE_AI_PROJECT_ID", env_values)
+    if not project_resource_id:
+        return ""
+
+    try:
+        return _run_raw(
+            build_project_identity_args(project_resource_id=project_resource_id)
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
 def provision_observability(*, dry_run: bool = False) -> dict[str, Any]:
     env_values = get_values(ignore_errors=True)
 
@@ -162,6 +199,7 @@ def provision_observability(*, dry_run: bool = False) -> dict[str, Any]:
             resource_group=resource_group,
             location=location,
             names=names,
+            project_principal_id=resolve_project_principal_id(env_values),
         )
     )
     outputs = ((deployment or {}).get("properties") or {}).get("outputs") or {}
